@@ -1,3 +1,3 @@
-# AdventOfCode2022
-https://adventofcode.com/2022
+# AdventOfCode2023
+https://adventofcode.com/2023
 
