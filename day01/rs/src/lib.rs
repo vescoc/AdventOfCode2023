@@ -72,6 +72,7 @@ fn solve_1(input: &str) -> u32 {
         })
         .sum()
 }
+
 fn solve_2(input: &str) -> u32 {
     input
         .lines()
