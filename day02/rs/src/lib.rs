@@ -1,7 +1,63 @@
 use lazy_static::lazy_static;
 
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{char as parse_char, multispace1, u32 as parse_u32},
+    combinator::opt,
+    error::Error,
+    sequence::{delimited, preceded, tuple},
+    IResult,
+};
+
 lazy_static! {
     static ref INPUT: &'static str = include_str!("../../input");
+}
+
+fn parse_game_id<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, u32> {
+    delimited(tag("Game "), parse_u32, parse_char(':'))
+}
+
+fn parse_cube<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, (u32, &'a str, &'a str, Option<char>)>
+{
+    preceded(
+        multispace1,
+        tuple((
+            parse_u32::<_, Error<_>>,
+            multispace1,
+            alt((tag("blue"), tag("red"), tag("green"))),
+            opt(alt((parse_char(','), parse_char(';')))),
+        )),
+    )
+}
+
+fn solve_1_nom(input: &str) -> u32 {
+    let mut parse_game_id = parse_game_id();
+    let mut parse_cube = parse_cube();
+
+    input
+        .lines()
+        .filter_map(|line| {
+            let (line, game_id) = parse_game_id(line).expect("invalid format");
+            let mut line = line;
+            while !line.is_empty() {
+                let (r, (value, _, color, _)) = parse_cube(line).expect("invalid cube format");
+                let valid = match color {
+                    "red" => value <= 12,
+                    "green" => value <= 13,
+                    "blue" => value <= 14,
+                    _ => unreachable!(),
+                };
+                if !valid {
+                    return None;
+                }
+
+                line = r;
+            }
+
+            Some(game_id)
+        })
+        .sum()
 }
 
 fn solve_1(input: &str) -> u32 {
@@ -61,6 +117,10 @@ fn solve_2(input: &str) -> u32 {
 
 pub fn part_1() -> u32 {
     solve_1(&INPUT)
+}
+
+pub fn part_1_nom() -> u32 {
+    solve_1_nom(&INPUT)
 }
 
 pub fn part_2() -> u32 {

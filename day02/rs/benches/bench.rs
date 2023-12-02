@@ -4,6 +4,7 @@ use day02::*;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("part 1", |b| b.iter(part_1));
+    c.bench_function("part 1 nom parser", |b| b.iter(part_1_nom));
     c.bench_function("part 2", |b| b.iter(part_2));
 }
 
