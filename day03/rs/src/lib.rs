@@ -3,10 +3,10 @@ use lazy_static::lazy_static;
 use std::collections::HashMap;
 
 lazy_static! {
-    static ref INPUT: &'static str = include_str!("../../input");
+    pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
-fn solve_1(input: &str) -> u32 {
+pub fn solve_1(input: &str) -> u32 {
     let engine = input
         .lines()
         .map(|line| line.as_bytes())
@@ -57,7 +57,7 @@ fn solve_1(input: &str) -> u32 {
     sum
 }
 
-fn solve_2(input: &str) -> u32 {
+pub fn solve_2(input: &str) -> u32 {
     let engine = input
         .lines()
         .map(|line| line.as_bytes())

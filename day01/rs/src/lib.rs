@@ -3,7 +3,7 @@ use std::iter;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref INPUT: &'static str = include_str!("../../input");
+    pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
 trait FirstAndLast: Iterator {
@@ -59,7 +59,7 @@ fn match_number(r: &[u8]) -> Option<(u32, usize)> {
     None
 }
 
-fn solve_1(input: &str) -> u32 {
+pub fn solve_1(input: &str) -> u32 {
     input
         .lines()
         .map(|line| {
@@ -73,7 +73,7 @@ fn solve_1(input: &str) -> u32 {
         .sum()
 }
 
-fn solve_2(input: &str) -> u32 {
+pub fn solve_2(input: &str) -> u32 {
     input
         .lines()
         .map(|line| {

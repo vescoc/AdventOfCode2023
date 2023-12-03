@@ -11,7 +11,7 @@ use nom::{
 };
 
 lazy_static! {
-    static ref INPUT: &'static str = include_str!("../../input");
+    pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
 fn parse_game_id<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, u32> {
@@ -60,7 +60,7 @@ fn solve_1_nom(input: &str) -> u32 {
         .sum()
 }
 
-fn solve_1(input: &str) -> u32 {
+pub fn solve_1(input: &str) -> u32 {
     input
         .lines()
         .filter_map(|line| {
@@ -90,7 +90,7 @@ fn solve_1(input: &str) -> u32 {
         .sum()
 }
 
-fn solve_2(input: &str) -> u32 {
+pub fn solve_2(input: &str) -> u32 {
     input
         .lines()
         .map(|line| {
