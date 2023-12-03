@@ -21,7 +21,7 @@ fn solve_1(input: &str) -> u32 {
                 let mut value = 0;
                 loop {
                     if !valid {
-                        for dx in -1..=1 {
+                        'outher: for dx in -1..=1 {
                             for dy in -1..=1 {
                                 if (dx != 0 || dy != 0)
                                     && (dx >= 0 || c != 0)
@@ -31,7 +31,10 @@ fn solve_1(input: &str) -> u32 {
                                         .get((r as isize + dy) as usize)
                                         .and_then(|row| row.get((c as isize + dx) as usize))
                                         .unwrap_or(&b'.');
-                                    valid = valid || !matches!(neighbour, b'.' | b'0'..=b'9');
+                                    if !matches!(neighbour, b'.' | b'0'..=b'9') {
+                                        valid = true;
+                                        break 'outher;
+                                    }
                                 }
                             }
                         }
@@ -65,12 +68,11 @@ fn solve_2(input: &str) -> u32 {
         let mut c = 0;
         while c < row.len() {
             if row[c].is_ascii_digit() {
-                let mut valid = false;
                 let mut value = 0;
-                let mut point = (0, 0);
+                let mut point = None;
                 loop {
-                    if !valid {
-                        for dx in -1..=1 {
+                    if point.is_none() {
+                        'outher: for dx in -1..=1 {
                             for dy in -1..=1 {
                                 if (dx != 0 || dy != 0)
                                     && (dx >= 0 || c != 0)
@@ -81,11 +83,11 @@ fn solve_2(input: &str) -> u32 {
                                         .and_then(|row| row.get((c as isize + dx) as usize))
                                         .unwrap_or(&b'.');
                                     if *neighbour == b'*' {
-                                        point = (
+                                        point = Some((
                                             (c as isize + dx) as usize,
                                             (r as isize + dy) as usize,
-                                        );
-                                        valid = true;
+                                        ));
+                                        break 'outher;
                                     }
                                 }
                             }
@@ -97,7 +99,7 @@ fn solve_2(input: &str) -> u32 {
                         break;
                     }
                 }
-                if valid {
+                if let Some(point) = point {
                     gears
                         .entry(point)
                         .and_modify(|v: &mut Vec<_>| v.push(value))
