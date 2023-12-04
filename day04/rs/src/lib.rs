@@ -1,22 +1,61 @@
 use lazy_static::lazy_static;
 
+use std::collections::HashSet;
+
 lazy_static! {
-    static ref INPUT: &'static str = include_str!("../../input");
+    pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
-fn solve_1(_input: &str) -> usize {
-    todo!()
+fn parse<'a>(input: &'a str) -> impl Iterator<Item = usize> + 'a {
+    input
+        .lines()
+        .map(|line| {
+            let (_, card_numbers_part) = line.split_once(':').expect("invalid card");
+            let (winning_numbers_part, numbers_part) = card_numbers_part
+                .split_once('|')
+                .expect("invalid numbers part");
+            let winning_numbers = winning_numbers_part
+                .split_ascii_whitespace()
+                .map(|number| number.parse::<u32>().expect("invalid winning number"))
+                .collect::<HashSet<_>>();
+
+            let numbers = numbers_part
+                .split_ascii_whitespace()
+                .map(|number| number.parse().expect("invalid number"))
+                .collect::<HashSet<_>>();
+
+            numbers.intersection(&winning_numbers).count()
+        })
 }
 
-fn solve_2(_input: &str) -> usize {
-    todo!()
+pub fn solve_1(input: &str) -> u32 {
+    parse(input)
+        .filter(|value| *value > 0)
+        .map(|value| 2_u32.pow(value as u32 - 1))
+        .sum()
 }
 
-pub fn part_1() -> usize {
+pub fn solve_2(input: &str) -> u32 {
+    let cards = parse(input).collect::<Vec<_>>();
+
+    let mut values = vec![1_u32; cards.len()];
+
+    for i in 0..values.len() {
+        let (current, remainder) = values.split_at_mut(i);
+        remainder
+            .iter_mut()
+            .take(cards[i])
+            .for_each(|v| *v += current.last().unwrap_or(&1));
+    }
+
+    values.iter().sum()
+}
+
+pub fn part_1() -> u32 {
     solve_1(&INPUT)
 }
 
-pub fn part_2() -> usize {
+pub fn part_2() -> u32 {
     solve_2(&INPUT)
 }
 
@@ -25,18 +64,16 @@ mod tests {
     use super::*;
 
     lazy_static! {
-        static ref INPUT: &'static str = r#"XX"#;
+        static ref EXAMPLE_1: &'static str = include_str!("../../example1");
     }
 
     #[test]
     fn same_results_1() {
-        // assert_eq!(solve_1(&INPUT), 666);
-        todo!();
+        assert_eq!(solve_1(&EXAMPLE_1), 13);
     }
 
     #[test]
     fn same_results_2() {
-        // assert_eq!(solve_2(&INPUT), 666);
-        todo!();
+        assert_eq!(solve_2(&EXAMPLE_1), 30);
     }
 }
