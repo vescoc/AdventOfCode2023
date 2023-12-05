@@ -201,7 +201,7 @@ pub fn solve_2(input: &str) -> u64 {
         .flat_map(|seeds| {
             maps.iter().fold(vec![seeds], |list, map| {
                 list.into_iter()
-                    .flat_map(|seeds| map.map(&seeds.clone()))
+                    .flat_map(|seeds| map.map(&seeds))
                     .collect::<Vec<_>>()
             })
         })
