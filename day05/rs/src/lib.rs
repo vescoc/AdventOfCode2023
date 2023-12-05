@@ -2,26 +2,27 @@ use lazy_static::lazy_static;
 
 use std::ops::Range;
 
+#[cfg(feature = "rayon")]
+use rayon::prelude::*;
+
 lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
-trait Chunks2<'a, O>: Iterator {
-    fn chunks_2<F: FnMut(<Self as Iterator>::Item, <Self as Iterator>::Item) -> O>(
-        &'a mut self,
+trait Chunks2: Iterator + Sized {
+    fn chunks_2<O, F: FnMut(<Self as Iterator>::Item, <Self as Iterator>::Item) -> O>(
+        self,
         f: F,
-    ) -> Chunks2Info<'a, Self, O, F>;
+    ) -> Chunks2Info<Self, O, F>;
 }
 
-struct Chunks2Info<'a, I: Iterator + ?Sized, O, F: FnMut(I::Item, I::Item) -> O> {
-    i: &'a mut I,
+struct Chunks2Info<I: Iterator, O, F: FnMut(I::Item, I::Item) -> O> {
+    i: I,
     v: Option<I::Item>,
     f: F,
 }
 
-impl<'a, I: Iterator + ?Sized, O, F: FnMut(I::Item, I::Item) -> O> Iterator
-    for Chunks2Info<'a, I, O, F>
-{
+impl<I: Iterator, O, F: FnMut(I::Item, I::Item) -> O> Iterator for Chunks2Info<I, O, F> {
     type Item = O;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -39,11 +40,8 @@ impl<'a, I: Iterator + ?Sized, O, F: FnMut(I::Item, I::Item) -> O> Iterator
     }
 }
 
-impl<'a, I: Iterator + ?Sized, O> Chunks2<'a, O> for I {
-    fn chunks_2<F: FnMut(I::Item, I::Item) -> O>(
-        &'a mut self,
-        f: F,
-    ) -> Chunks2Info<'a, Self, O, F> {
+impl<I: Iterator> Chunks2 for I {
+    fn chunks_2<O, F: FnMut(I::Item, I::Item) -> O>(mut self, f: F) -> Chunks2Info<Self, O, F> {
         let v = self.next();
 
         Chunks2Info { i: self, v, f }
@@ -190,14 +188,19 @@ pub fn solve_1(input: &str) -> u64 {
 pub fn solve_2(input: &str) -> u64 {
     let mut parts = input.split("\n\n");
 
-    let seeds_part = parts.next().expect("cannot find seeds");
+    let seeds_list_part = parts.next().expect("cannot find seeds");
 
     let maps = Map::parse(parts);
 
-    seeds_part["seeds: ".len()..]
+    let seeds_list = seeds_list_part["seeds: ".len()..]
         .split_whitespace()
         .map(|value| value.parse::<u64>().expect("invalid value"))
-        .chunks_2(|a, b| Seeds(a..(a + b)))
+        .chunks_2(|a, b| Seeds(a..(a + b)));
+
+    #[cfg(feature = "rayon")]
+    let seeds_list = seeds_list.par_bridge();
+
+    seeds_list
         .flat_map(|seeds| {
             maps.iter().fold(vec![seeds], |list, map| {
                 list.into_iter()
