@@ -1,10 +1,20 @@
+#![cfg_attr(feature = "simd", feature(portable_simd))]
+
+#[cfg(all(feature = "simd", feature = "rayon"))]
+compile_error!(r#"Feature "simd" and "rayon" are mutual exclusive"#);
+
 use lazy_static::lazy_static;
 
+#[allow(unused_imports)]
 use num::integer::lcm;
+
 use std::collections::HashMap;
 
-#[cfg(feature = "rayon")]
+#[cfg(all(feature = "rayon", not(feature = "simd")))]
 use rayon::prelude::*;
+
+#[cfg(feature = "simd")]
+mod simd;
 
 lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
@@ -68,6 +78,7 @@ pub fn solve_1(input: &str) -> u64 {
 pub fn solve_2(input: &str) -> u64 {
     let (path, network) = parse(input);
 
+    #[cfg(not(feature = "simd"))]
     let from_a_to_z = |&node: &&str| {
         if node.ends_with('A') {
             Some(steps(path, &network, node, |current| {
@@ -78,14 +89,22 @@ pub fn solve_2(input: &str) -> u64 {
         }
     };
 
-    #[cfg(feature = "rayon")]
+    #[cfg(all(feature = "rayon", not(feature = "simd")))]
     let result = network
         .par_iter()
         .filter_map(|(node, _)| from_a_to_z(node))
         .reduce(|| 1, lcm);
 
     #[cfg(not(feature = "rayon"))]
-    let result = network.keys().filter_map(from_a_to_z).reduce(lcm).unwrap();
+    let result = {
+        #[cfg(not(feature = "simd"))]
+        let result = network.keys().filter_map(from_a_to_z).reduce(lcm).unwrap();
+
+        #[cfg(feature = "simd")]
+        let result = simd::solve(path, network);
+
+        result
+    };
 
     result
 }

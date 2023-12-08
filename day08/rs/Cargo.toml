@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 default = ["rayon"]
 rayon = ["dep:rayon"]
+simd = []
 
 [dependencies]
 lazy_static = "1.4"
