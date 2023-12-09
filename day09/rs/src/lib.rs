@@ -4,22 +4,34 @@ lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
-fn extrapolate(mut i: impl Iterator<Item = i64>) -> i64 {
-    let current = i.next().unwrap();
+#[inline(always)]
+fn extrapolate(i: impl Iterator<Item = i64>) -> i64 {
+    #[inline(always)]
+    fn extrapolate_norec(mut acc: i64, mut i: Vec<i64>) -> i64 {
+        loop {
+            let mut iter = i.into_iter();
 
-    let bottom = i
-        .scan(current, |state, value| {
-            let r = Some(*state - value);
-            *state = value;
-            r
-        })
-        .collect::<Vec<_>>();
+            let current = iter.next().unwrap();
 
-    if bottom.iter().all(|&value| value == 0) {
-        current
-    } else {
-        current + extrapolate(bottom.into_iter())
+            acc += current;
+
+            let bottom = iter
+                .scan(current, |state, value| {
+                    let r = Some(*state - value);
+                    *state = value;
+                    r
+                })
+                .collect::<Vec<_>>();
+
+            if bottom.iter().all(|&value| value == 0) {
+                break acc;
+            } else {
+                i = bottom;
+            }
+        }
     }
+
+    extrapolate_norec(0, i.collect())
 }
 
 fn parse_rev(line: &str) -> impl Iterator<Item = i64> + '_ {
