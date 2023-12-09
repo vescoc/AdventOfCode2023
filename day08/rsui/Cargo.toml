@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-day08 = { path = "../rs", default-features = false }
 ui = { path = "../../common/rs/ui", features = ["wasm-bindgen"]}
+
+[dependencies.day08]
+path = "../rs"
+default-features = false
+features = ["simd"]
 
 [dependencies.yew]
 version = "0.21"
