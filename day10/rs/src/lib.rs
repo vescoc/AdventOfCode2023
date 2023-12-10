@@ -32,87 +32,77 @@ fn solve(input: &str) -> (u32, Vec<&[u8]>, Vec<Vec<bool>>, u8) {
         }
     };
 
-    let mut visited = {
-        let mut visited = Vec::with_capacity(nrows as usize);
-        for _ in 0..nrows {
-            visited.push(vec![false; ncols as usize]);
-        }
-
-        visited
-    };
+    let mut visited = vec![vec![false; ncols as usize]; nrows as usize];
 
     visited[y as usize][x as usize] = true;
 
-    let (mut current, s) = {
+    let (current, s) = {
         let mut neighbors = NEIGHBORS.iter().filter_map(|((dx, dy), srcs, valid)| {
             let (nx, ny) = (x + dx, y + dy);
-            if nx >= 0
-                && nx < ncols
-                && ny >= 0
-                && ny < nrows
-                && valid.contains(&tiles[ny as usize][nx as usize])
-            {
-                Some(((nx, ny), srcs))
-            } else {
-                None
-            }
+
+            tiles
+                .get(ny as usize)
+                .and_then(|row| row.get(nx as usize))
+                .and_then(|t| {
+                    if valid.contains(t) {
+                        Some(((nx, ny), srcs))
+                    } else {
+                        None
+                    }
+                })
         });
 
-        let ((first, first_tile), (_, second_tile)) = (
+        let ((first, first_tiles), (_, second_tiles)) = (
             neighbors.next().expect("cannot find first path"),
             neighbors.next().expect("cannot find second path"),
         );
 
-        let tile = {
-            'outher: loop {
-                for t in first_tile {
-                    if second_tile.contains(t) {
-                        break 'outher t;
-                    }
-                }
-
-                panic!("cannot find S mapping");
-            }
-        };
+        let tile = first_tiles
+            .iter()
+            .find(|t| second_tiles.contains(t))
+            .expect("cannot find S equivalence");
 
         (first, tile)
     };
 
-    let mut steps = 0;
-    loop {
-        steps += 1;
-        let (x, y) = current;
+    let steps = (2..)
+        .scan(current, |current, i| {
+            let (x, y) = *current;
 
-        visited[y as usize][x as usize] = true;
+            visited[y as usize][x as usize] = true;
 
-        let pipe = tiles[y as usize][x as usize];
+            let pipe = tiles[y as usize][x as usize];
 
-        if let Some(r) = NEIGHBORS
-            .iter()
-            .find_map(|((dx, dy), valid_src, valid_dest)| {
-                if valid_src.contains(&pipe) {
-                    let (nx, ny) = (x + dx, y + dy);
-                    if nx >= 0
-                        && nx < ncols
-                        && ny >= 0
-                        && ny < nrows
-                        && !visited[ny as usize][nx as usize]
-                        && valid_dest.contains(&tiles[ny as usize][nx as usize])
-                    {
-                        Some((nx, ny))
+            if let Some(r) = NEIGHBORS
+                .iter()
+                .find_map(|((dx, dy), valid_src, valid_dest)| {
+                    if valid_src.contains(&pipe) {
+                        let (nx, ny) = (x + dx, y + dy);
+
+                        tiles
+                            .get(ny as usize)
+                            .and_then(|row| row.get(nx as usize))
+                            .and_then(|t| {
+                                if !visited[ny as usize][nx as usize] && valid_dest.contains(t) {
+                                    Some((nx, ny))
+                                } else {
+                                    None
+                                }
+                            })
                     } else {
                         None
                     }
-                } else {
-                    None
-                }
-            })
-        {
-            current = r;
-        } else {
-            break;
-        }
-    }
+                })
+            {
+                *current = r;
+
+                Some(i)
+            } else {
+                None
+            }
+        })
+        .last()
+        .unwrap();
 
     (steps, tiles, visited, *s)
 }
@@ -126,26 +116,32 @@ pub fn solve_1(input: &str) -> u32 {
 pub fn solve_2(input: &str) -> u32 {
     let (_, tiles, visited, s) = solve(input);
 
-    let mut area = 0;
-    for (y, row) in visited.iter().enumerate() {
-        let mut inside = false;
-        for (x, &v) in row.iter().enumerate() {
-            if v {
-                match tiles[y][x] {
-                    b'|' | b'L' | b'J' => inside = !inside,
-                    b'S' => match s {
-                        b'|' | b'L' | b'J' => inside = !inside,
-                        _ => {}
-                    },
-                    _ => {}
-                }
-            } else if inside {
-                area += 1;
-            }
-        }
-    }
-
-    area
+    visited
+        .iter()
+        .enumerate()
+        .map(|(y, row)| {
+            row.iter()
+                .enumerate()
+                .scan(false, |inside, (x, &v)| {
+                    if v {
+                        match tiles[y][x] {
+                            b'|' | b'L' | b'J' => *inside = !*inside,
+                            b'S' => match s {
+                                b'|' | b'L' | b'J' => *inside = !*inside,
+                                _ => {}
+                            },
+                            _ => {}
+                        }
+                        Some(0)
+                    } else if *inside {
+                        Some(1)
+                    } else {
+                        Some(0)
+                    }
+                })
+                .sum::<u32>()
+        })
+        .sum()
 }
 
 pub fn part_1() -> u32 {
