@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -6,7 +8,6 @@ lazy_static! {
 
 #[inline(always)]
 fn extrapolate(i: impl Iterator<Item = i64>) -> i64 {
-    #[inline(always)]
     fn extrapolate_norec(mut acc: i64, mut i: Vec<i64>) -> i64 {
         loop {
             let mut iter = i.into_iter();
@@ -25,9 +26,9 @@ fn extrapolate(i: impl Iterator<Item = i64>) -> i64 {
 
             if bottom.iter().all(|&value| value == 0) {
                 break acc;
-            } else {
-                i = bottom;
             }
+
+            i = bottom;
         }
     }
 
@@ -45,7 +46,6 @@ fn parse_fwd(line: &str) -> impl Iterator<Item = i64> + '_ {
         .map(|n| n.parse::<i64>().expect("invalid number"))
 }
 
-#[inline(always)]
 fn solve<'a, F, I>(input: &'a str, parse: F) -> i64
 where
     F: Fn(&'a str) -> I + Sync + Send + 'a,

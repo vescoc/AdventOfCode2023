@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use lazy_static::lazy_static;
 
 use std::collections::HashMap;
@@ -6,10 +8,11 @@ lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
 pub fn solve_1(input: &str) -> u32 {
     let engine = input
         .lines()
-        .map(|line| line.as_bytes())
+        .map(str::as_bytes)
         .collect::<Vec<_>>();
 
     let mut sum = 0;
@@ -39,7 +42,7 @@ pub fn solve_1(input: &str) -> u32 {
                             }
                         }
                     }
-                    value = value * 10 + (row[c] - b'0') as u32;
+                    value = value * 10 + u32::from(row[c] - b'0');
                     c += 1;
                     if c >= row.len() || !row[c].is_ascii_digit() {
                         break;
@@ -57,10 +60,11 @@ pub fn solve_1(input: &str) -> u32 {
     sum
 }
 
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
 pub fn solve_2(input: &str) -> u32 {
     let engine = input
         .lines()
-        .map(|line| line.as_bytes())
+        .map(str::as_bytes)
         .collect::<Vec<_>>();
 
     let mut gears = HashMap::with_capacity(1024);
@@ -93,7 +97,7 @@ pub fn solve_2(input: &str) -> u32 {
                             }
                         }
                     }
-                    value = value * 10 + (row[c] - b'0') as u32;
+                    value = value * 10 + u32::from(row[c] - b'0');
                     c += 1;
                     if c >= row.len() || !row[c].is_ascii_digit() {
                         break;

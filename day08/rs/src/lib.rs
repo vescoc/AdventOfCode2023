@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 #![cfg_attr(feature = "simd", feature(portable_simd))]
 
 #[cfg(all(feature = "simd", feature = "rayon"))]
@@ -45,7 +47,7 @@ fn parse(input: &str) -> (&str, Network) {
     (path, network)
 }
 
-#[inline(always)]
+#[allow(clippy::maybe_infinite_iter)]
 fn steps(
     path: &str,
     network: &Network,

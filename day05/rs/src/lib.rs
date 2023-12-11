@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use lazy_static::lazy_static;
 
 use std::ops::Range;
@@ -116,7 +118,7 @@ impl Map {
     fn map(&self, seeds: &Seeds) -> Vec<Seeds> {
         let mut result = vec![];
         let mut list = vec![seeds.clone()];
-        for map_entry in self.0.iter() {
+        for map_entry in &self.0 {
             let mut new_list = vec![];
             for seeds in &list {
                 let (mapped, mut unmapped) = map_entry.map(seeds);
@@ -170,6 +172,10 @@ impl Map {
     }
 }
 
+/// Solve part 1
+///
+/// # Panics
+/// Panics if input is invalid
 pub fn solve_1(input: &str) -> u64 {
     let mut parts = input.split("\n\n");
 
@@ -185,6 +191,10 @@ pub fn solve_1(input: &str) -> u64 {
         .expect("invalid input")
 }
 
+/// Solve part 1
+///
+/// # Panics
+/// Panics if input is invalid
 pub fn solve_2(input: &str) -> u64 {
     let mut parts = input.split("\n\n");
 

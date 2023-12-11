@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use lazy_static::lazy_static;
 
 use nom::{
@@ -60,6 +62,10 @@ fn solve_1_nom(input: &str) -> u32 {
         .sum()
 }
 
+/// Solve part 1
+///
+/// # Panics
+/// Panics if invalid input
 pub fn solve_1(input: &str) -> u32 {
     input
         .lines()
@@ -90,6 +96,10 @@ pub fn solve_1(input: &str) -> u32 {
         .sum()
 }
 
+/// Solve part 2
+///
+/// # Panics
+/// Panics if invalid input
 pub fn solve_2(input: &str) -> u32 {
     input
         .lines()

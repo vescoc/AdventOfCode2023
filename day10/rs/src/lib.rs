@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -13,10 +15,11 @@ const NEIGHBORS: [(DPoint, [u8; 3], [u8; 3]); 4] = [
     ((0, -1), *b"|JL", *b"|7F"),
 ];
 
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss, clippy::maybe_infinite_iter)]
 fn solve(input: &str) -> (u32, Vec<&[u8]>, Vec<Vec<bool>>, u8) {
     let tiles = input
         .lines()
-        .map(|line| line.as_bytes())
+        .map(str::as_bytes)
         .collect::<Vec<_>>();
 
     let (nrows, ncols) = (tiles.len() as isize, tiles[0].len() as isize);

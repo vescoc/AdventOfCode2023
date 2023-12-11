@@ -1,3 +1,5 @@
+#![allow(clippy::must_use_candidate)]
+
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -64,7 +66,6 @@ fn find_max(time: u64, distance: u64) -> u64 {
     }
 }
 
-#[inline(always)]
 fn solve(time: u64, distance: u64) -> u64 {
     let min = find_min(time, distance);
     let max = find_max(time, distance);
@@ -72,6 +73,10 @@ fn solve(time: u64, distance: u64) -> u64 {
     max - min + 1
 }
 
+/// solve part 1
+///
+/// # Panics
+/// If input is invalid
 pub fn solve_1(input: &str) -> u64 {
     let mut lines = input.lines();
 
@@ -87,6 +92,10 @@ pub fn solve_1(input: &str) -> u64 {
     time.zip(distance).map(|(t, d)| solve(t, d)).product()
 }
 
+/// solve part 2
+///
+/// # Panics
+/// If input is invalid
 pub fn solve_2(input: &str) -> u64 {
     let mut lines = input.lines();
 

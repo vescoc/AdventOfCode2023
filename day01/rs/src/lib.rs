@@ -25,7 +25,10 @@
 //! calibration document (your puzzle input) has been amended by a
 //! very young Elf who was apparently just excited to show off her art
 //! skills. Consequently, the Elves are having trouble reading the
-//! values on the document.    
+//! values on the document.
+
+#![allow(clippy::must_use_candidate)]
+
 use std::iter;
 
 use lazy_static::lazy_static;
@@ -116,13 +119,16 @@ fn match_number(r: &[u8]) -> Option<(u32, usize)> {
 ///
 /// assert_eq!(solve_1(&input), 142);
 /// ```
+///
+/// # Panics
+/// Panics if invalid input
 pub fn solve_1(input: &str) -> u32 {
     input
         .lines()
         .map(|line| {
             let (first, last) = line
                 .chars()
-                .filter(|c| c.is_ascii_digit())
+                .filter(char::is_ascii_digit)
                 .first_and_last()
                 .expect("invalid line");
             first.to_digit(10).unwrap() * 10 + last.to_digit(10).unwrap()
@@ -164,6 +170,9 @@ pub fn solve_1(input: &str) -> u32 {
 ///
 /// assert_eq!(solve_2(&input), 281);
 /// ```
+///
+/// # Panics
+/// Panics if invalid input
 pub fn solve_2(input: &str) -> u32 {
     input
         .lines()
@@ -173,15 +182,15 @@ pub fn solve_2(input: &str) -> u32 {
             let (first, last) = iter::from_fn(move || {
                 while i < r.len() {
                     if r[i].is_ascii_digit() {
-                        let value = (r[i] - b'0') as u32;
+                        let value = u32::from(r[i] - b'0');
                         i += 1;
                         return Some(value);
                     } else if let Some((value, _)) = match_number(&r[i..]) {
                         i += 1;
                         return Some(value);
-                    } else {
-                        i += 1;
                     }
+
+                    i += 1;
                 }
                 None
             })
