@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["rayon"]
+default = ["rayon", "recursion"]
 rayon = ["dep:rayon"]
+recursion = []
 
 [dependencies]
 lazy_static = "1.4"
