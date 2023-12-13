@@ -30,13 +30,12 @@ mod tests {
 
     #[test]
     fn same_results_1() {
-        // assert_eq!(solve_1(&EXAMPLE_1), 666);
-        todo!();
+        assert_eq!(solve_1(&EXAMPLE_1), 405);
     }
 
     #[test]
+    #[ignore]
     fn same_results_2() {
-        // assert_eq!(solve_2(&EXAMPLE_1), 666);
-        todo!();
+        assert_eq!(solve_2(&EXAMPLE_1), 666);
     }
 }
