@@ -3,6 +3,9 @@ name = "day14"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+simd = []
+
 [dependencies]
 lazy_static = "1.4"
 
