@@ -3,23 +3,57 @@ use std::{
     simd::{prelude::*, LaneCount, SupportedLaneCount},
 };
 
-pub fn cycle(mut tiles: Vec<u8>, ncols: usize, nrows: usize) -> Vec<u8> {
+const IDX: [usize; 128] = {
+    let mut init = [0; 128];
+    let mut i = 0;
+    loop {
+        init[i] = i;
+        i += 1;
+        if i == init.len() {
+            break;
+        }
+    }
+    init
+};
+
+/// Cycle one times.
+/// # Panics
+/// Panic if LANES is either minor of nrows or ncols
+pub fn cycle<const LANES: usize>(mut tiles: Vec<u8>, ncols: usize, nrows: usize) -> Vec<u8>
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    assert!(
+        ncols < LANES && nrows < LANES,
+        "invalid LANES, must be > (nrows, ncols)"
+    );
+
+    let row_mask = Mask::<isize, LANES>::from_array(array::from_fn(|i| i < ncols));
+
     // north
     let mut new_tiles = vec![b'.'; (ncols + 1) * nrows];
-    for c in 0..ncols {
-        let mut state = 0;
+    {
+        let mut state = Simd::<usize, LANES>::splat(0);
         for r in 0..nrows {
-            match tiles.get((ncols + 1) * r + c) {
-                Some(b'O') => {
-                    new_tiles[(ncols + 1) * state + c] = b'O';
-                    state += 1;
-                }
-                Some(b'#') => {
-                    new_tiles[(ncols + 1) * r + c] = b'#';
-                    state = r + 1;
-                }
-                _ => {}
-            }
+            let idx = Simd::<usize, LANES>::from_slice(&IDX[0..LANES]);
+            let r_idx = idx + Simd::splat((ncols + 1) * r);
+
+            let values = Simd::gather_or_default(&tiles, r_idx);
+
+            let o_tiles = values.simd_eq(Simd::splat(b'O')).cast::<isize>() & row_mask;
+            Simd::splat(b'O').scatter_select(
+                &mut new_tiles,
+                o_tiles,
+                state * Simd::splat(ncols + 1) + idx,
+            );
+
+            let sharp_tiles = values.simd_eq(Simd::splat(b'#')).cast::<isize>() & row_mask;
+            Simd::splat(b'#').scatter_select(&mut new_tiles, sharp_tiles, r_idx);
+
+            state = o_tiles.select(
+                state + Simd::splat(1),
+                sharp_tiles.select(Simd::splat(r + 1), state),
+            );
         }
     }
 
@@ -99,19 +133,6 @@ where
         "invalid LANES, must be > (nrows, ncols)"
     );
 
-    const IDX: [usize; 128] = {
-        let mut init = [0; 128];
-        let mut i = 0;
-        loop {
-            init[i] = i;
-            i += 1;
-            if i == init.len() {
-                break;
-            }
-        }
-        init
-    };
-
     let sum = (0..nrows).fold(Simd::<usize, LANES>::splat(0), |acc, r| {
         let idx = Simd::<usize, LANES>::from_slice(&IDX[0..LANES]) + Simd::splat((ncols + 1) * r);
 
@@ -120,7 +141,7 @@ where
         o_tiles.cast().select(acc + Simd::splat(nrows - r), acc)
     });
 
-    Mask::from_array(array::from_fn(|i| if i < ncols { true } else { false }))
+    Mask::from_array(array::from_fn(|i| i < ncols))
         .select(sum, Simd::splat(0))
         .reduce_sum()
 }
@@ -146,10 +167,33 @@ mod test {
     }
 
     #[test]
+    fn test_same_results_for_cycle() {
+        let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
+
+        let simd_r = simd::cycle::<16>(tiles.to_vec(), ncols, nrows);
+        let simple_r = simple::cycle(tiles.to_vec(), ncols, nrows);
+        assert_eq!(
+            simd_r,
+            simple_r,
+            "simd:\n{}\nsimple:\n{}",
+            std::str::from_utf8(&simd_r).unwrap(),
+            std::str::from_utf8(&simple_r).unwrap(),
+        );
+    }
+
+    #[test]
     #[should_panic(expected = "invalid LANES, must be > (nrows, ncols)")]
     fn test_load_with_invalid_lanes() {
         let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
 
         let _ = simd::load::<8>(&tiles, ncols, nrows);
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid LANES, must be > (nrows, ncols)")]
+    fn test_cycle_with_invalid_lanes() {
+        let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
+
+        let _ = simd::cycle::<8>(tiles.to_vec(), ncols, nrows);
     }
 }

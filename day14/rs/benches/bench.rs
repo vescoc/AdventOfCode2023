@@ -33,7 +33,7 @@ fn bench_simd(c: &mut Criterion) {
     let tiles = tiles.to_vec();
 
     c.bench_function("simd cycle example 1", |b| {
-        b.iter(|| black_box(simd::cycle(tiles.clone(), ncols, nrows)))
+        b.iter(|| black_box(simd::cycle::<16>(tiles.clone(), ncols, nrows)))
     });
     c.bench_function("simd load example 1", |b| {
         b.iter(|| black_box(simd::load::<16>(&tiles, ncols, nrows)))
