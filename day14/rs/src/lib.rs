@@ -12,6 +12,9 @@ use simple::{cycle, load};
 #[cfg(feature = "simd")]
 pub mod simd;
 
+#[cfg(feature = "simd")]
+pub mod simd2;
+
 lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
@@ -128,30 +131,5 @@ mod tests {
     #[test]
     fn same_results_2() {
         assert_eq!(solve_2(&EXAMPLE_1), 64);
-    }
-
-    #[test]
-    fn cycle_1() {
-        assert_eq!(
-            std::str::from_utf8(&cycle(
-                EXAMPLE_1.as_bytes().iter().copied().collect::<Vec<_>>(),
-                10,
-                10
-            ))
-            .unwrap()
-            .to_string(),
-            r".....#....
-....#...O#
-...OO##...
-.OO#......
-.....OOO#.
-.O#...O#.#
-....O#....
-......OOOO
-#...O###..
-#..OO#....
-"
-            .replace('\n', ".")
-        );
     }
 }

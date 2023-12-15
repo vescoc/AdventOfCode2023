@@ -90,3 +90,39 @@ pub fn load(tiles: &[u8], ncols: usize, nrows: usize) -> usize {
         })
         .sum()
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use lazy_static::lazy_static;
+
+    lazy_static! {
+        static ref EXAMPLE_1: &'static str = include_str!("../../example1");
+    }
+
+    #[test]
+    fn cycle_1() {
+        assert_eq!(
+            std::str::from_utf8(&cycle(
+                EXAMPLE_1.as_bytes().iter().copied().collect::<Vec<_>>(),
+                10,
+                10
+            ))
+            .unwrap()
+            .to_string(),
+            r".....#....
+....#...O#
+...OO##...
+.OO#......
+.....OOO#.
+.O#...O#.#
+....O#....
+......OOOO
+#...O###..
+#..OO#....
+"
+            .replace('\n', ".")
+        );
+    }
+}

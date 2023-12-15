@@ -140,21 +140,38 @@ where
     LaneCount<LANES>: SupportedLaneCount,
 {
     assert!(
-        ncols < LANES && nrows < LANES,
-        "invalid LANES, must be > (nrows, ncols)"
+        ncols < LANES * 2 && nrows < LANES * 2 && ncols > LANES && nrows > LANES,
+        "invalid LANES"
     );
 
-    let sum = (0..nrows).fold(Simd::<usize, LANES>::splat(0), |acc, r| {
-        let idx = Simd::<usize, LANES>::from_slice(&IDX[0..LANES]) + Simd::splat((ncols + 1) * r);
+    let base_idx_low = Simd::<usize, LANES>::from_slice(&IDX[0..LANES]);
+    let base_idx_high = Simd::<usize, LANES>::from_slice(&IDX[LANES..LANES * 2]);
+    let zero = Simd::splat(0_u8);
+    let o = Simd::splat(b'O');
+    let row_mask_high = Mask::from_array(array::from_fn(|i| i + LANES < ncols));
 
-        let o_tiles = Simd::gather_or_default(tiles, idx).simd_eq(Simd::splat(b'O'));
+    let (mut acc_low, mut acc_high) = (
+        Simd::<usize, LANES>::splat(0),
+        Simd::<usize, LANES>::splat(0),
+    );
 
-        o_tiles.cast().select(acc + Simd::splat(nrows - r), acc)
-    });
+    for r in 0..nrows {
+        let ncols_1_r = Simd::splat((ncols + 1) * r);
 
-    Mask::from_array(array::from_fn(|i| i < ncols))
-        .select(sum, Simd::splat(0))
-        .reduce_sum()
+        let (idx_low, idx_high) = (base_idx_low + ncols_1_r, base_idx_high + ncols_1_r);
+
+        let (o_tiles_low, o_tiles_high) = (
+            Simd::gather_or(tiles, idx_low, zero).simd_eq(o),
+            Simd::gather_select(tiles, row_mask_high, idx_high, zero).simd_eq(o),
+        );
+
+        let nrows_r = Simd::splat(nrows - r);
+
+        acc_low = o_tiles_low.cast().select(acc_low + nrows_r, acc_low);
+        acc_high = o_tiles_high.cast().select(acc_high + nrows_r, acc_high);
+    }
+
+    acc_low.reduce_sum() + row_mask_high.select(acc_high, Simd::splat(0)).reduce_sum()
 }
 
 #[cfg(test)]
@@ -162,7 +179,7 @@ mod test {
     use lazy_static::lazy_static;
 
     use crate::parse;
-    use crate::simd;
+    use crate::simd2 as simd;
     use crate::simple;
 
     lazy_static! {
@@ -174,7 +191,7 @@ mod test {
         let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
 
         assert_eq!(
-            simd::load::<16>(&tiles, ncols, nrows),
+            simd::load::<8>(&tiles, ncols, nrows),
             simple::load(&tiles, ncols, nrows)
         );
     }
@@ -195,11 +212,11 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "invalid LANES, must be > (nrows, ncols)")]
+    #[should_panic(expected = "invalid LANES")]
     fn test_load_with_invalid_lanes() {
         let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
 
-        let _ = simd::load::<8>(&tiles, ncols, nrows);
+        let _ = simd::load::<16>(&tiles, ncols, nrows);
     }
 
     #[test]
