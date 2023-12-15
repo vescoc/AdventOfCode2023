@@ -28,8 +28,8 @@ pub fn solve_2(input: &str) -> usize {
         .as_bytes()
         .split(|&c| c == b',')
         .fold(
-            array::from_fn::<Vec<(&[u8], usize)>, 256, _>(|_| vec![]),
-            |mut boxes, lens| {
+            &mut array::from_fn::<Vec<(&[u8], usize)>, 256, _>(|_| Vec::new()),
+            |boxes, lens| {
                 let mut parts = lens.split_inclusive(|&c| c == b'-' || c == b'=');
                 let label = parts.next().expect("label not found");
                 let (label, action) = { (&label[0..label.len() - 1], label[label.len() - 1]) };
@@ -49,7 +49,7 @@ pub fn solve_2(input: &str) -> usize {
                 boxes
             },
         )
-        .into_iter()
+        .iter()
         .enumerate()
         .map(|(i, b)| {
             b.iter()
