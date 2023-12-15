@@ -1,20 +1,41 @@
 use std::{
     array,
-    simd::{prelude::*, LaneCount, SupportedLaneCount},
+    simd::{prelude::*, LaneCount, SimdElement, SupportedLaneCount},
 };
 
-const IDX: [usize; 128] = {
-    let mut init = [0; 128];
+const fn splat<T, const LANES: usize>(v: T) -> Simd<T, LANES>
+where
+    T: SimdElement,
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    Simd::from_array([v; LANES])
+}
+
+const fn range_from<const LANES: usize>(v: usize) -> Simd<usize, LANES>
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    let mut r = [0; LANES];
     let mut i = 0;
-    loop {
-        init[i] = i;
+    while i < LANES {
+        r[i] = v + i;
         i += 1;
-        if i == init.len() {
-            break;
-        }
     }
-    init
-};
+    Simd::from_array(r)
+}
+
+const fn range_from_with<const LANES: usize>(v: usize, inc: usize) -> Simd<usize, LANES>
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    let mut r = [0; LANES];
+    let mut i = 0;
+    while i < LANES {
+        r[i] = v + i * inc;
+        i += 1;
+    }
+    Simd::from_array(r)
+}
 
 /// Cycle one times.
 /// # Panics
@@ -31,34 +52,27 @@ where
     let row_mask = Mask::<isize, LANES>::from_array(array::from_fn(|i| i < nrows));
     let column_mask = Mask::<isize, LANES>::from_array(array::from_fn(|i| i < ncols));
 
-    let first_row_idx = Simd::<usize, LANES>::from_slice(&IDX[0..LANES]);
-    let first_column_idx = first_row_idx * Simd::splat(ncols + 1);
-
-    let zero = Simd::<usize, LANES>::from_array([0; LANES]);
-    let zero_u8 = Simd::<u8, LANES>::from_array([0; LANES]);
-    let one = Simd::<usize, LANES>::from_array([1; LANES]);
-
-    let o = Simd::<u8, LANES>::from_array([b'O'; LANES]);
-    let sharp = Simd::<u8, LANES>::from_array([b'#'; LANES]);
-
     let ncols_1 = Simd::splat(ncols + 1);
 
     // north
     let mut new_tiles = vec![b'.'; (ncols + 1) * nrows];
     {
-        let mut state = zero;
+        let mut state = splat(0);
         for r in 0..nrows {
-            let r_idx = first_row_idx + Simd::splat((ncols + 1) * r);
+            let r_idx = range_from(0) + Simd::splat((ncols + 1) * r);
 
-            let values = Simd::gather_select(&tiles, row_mask, r_idx, zero_u8);
+            let values = Simd::gather_select(&tiles, row_mask, r_idx, splat(0));
 
-            let o_tiles = values.simd_eq(o).cast::<isize>() & row_mask;
-            o.scatter_select(&mut new_tiles, o_tiles, state * ncols_1 + first_row_idx);
+            let o_tiles = values.simd_eq(splat(b'O')).cast::<isize>() & row_mask;
+            splat(b'O').scatter_select(&mut new_tiles, o_tiles, state * ncols_1 + range_from(0));
 
-            let sharp_tiles = values.simd_eq(sharp).cast::<isize>() & row_mask;
-            sharp.scatter_select(&mut new_tiles, sharp_tiles, r_idx);
+            let sharp_tiles = values.simd_eq(splat(b'#')).cast::<isize>() & row_mask;
+            splat(b'#').scatter_select(&mut new_tiles, sharp_tiles, r_idx);
 
-            state = o_tiles.select(state + one, sharp_tiles.select(Simd::splat(r + 1), state));
+            state = o_tiles.select(
+                state + splat(1),
+                sharp_tiles.select(Simd::splat(r + 1), state),
+            );
         }
     }
 
@@ -66,19 +80,26 @@ where
     tiles = new_tiles;
     let mut new_tiles = vec![b'.'; (ncols + 1) * nrows];
     {
-        let mut state = zero;
+        let mut state = splat(0);
         for c in 0..ncols {
-            let c_idx = first_column_idx + Simd::splat(c);
+            let c_idx = range_from_with(0, ncols + 1) + Simd::splat(c);
 
-            let values = Simd::gather_select(&tiles, column_mask, c_idx, zero_u8);
+            let values = Simd::gather_select(&tiles, column_mask, c_idx, splat(0));
 
-            let o_tiles = values.simd_eq(o).cast::<isize>() & column_mask;
-            o.scatter_select(&mut new_tiles, o_tiles, state + first_column_idx);
+            let o_tiles = values.simd_eq(splat(b'O')).cast::<isize>() & column_mask;
+            splat(b'O').scatter_select(
+                &mut new_tiles,
+                o_tiles,
+                state + range_from_with(0, ncols + 1),
+            );
 
-            let sharp_tiles = values.simd_eq(sharp).cast::<isize>() & column_mask;
-            sharp.scatter_select(&mut new_tiles, sharp_tiles, c_idx);
+            let sharp_tiles = values.simd_eq(splat(b'#')).cast::<isize>() & column_mask;
+            splat(b'#').scatter_select(&mut new_tiles, sharp_tiles, c_idx);
 
-            state = o_tiles.select(state + one, sharp_tiles.select(Simd::splat(c + 1), state));
+            state = o_tiles.select(
+                state + splat(1),
+                sharp_tiles.select(Simd::splat(c + 1), state),
+            );
         }
     }
 
@@ -88,18 +109,18 @@ where
     {
         let mut state = Simd::<usize, LANES>::splat(nrows - 1);
         for r in (0..nrows).rev() {
-            let r_idx = first_row_idx + Simd::splat((ncols + 1) * r);
+            let r_idx = range_from(0) + Simd::splat((ncols + 1) * r);
 
-            let values = Simd::gather_select(&tiles, row_mask, r_idx, zero_u8);
+            let values = Simd::gather_select(&tiles, row_mask, r_idx, splat(0));
 
-            let o_tiles = values.simd_eq(o).cast::<isize>() & row_mask;
-            o.scatter_select(&mut new_tiles, o_tiles, state * ncols_1 + first_row_idx);
+            let o_tiles = values.simd_eq(splat(b'O')).cast::<isize>() & row_mask;
+            splat(b'O').scatter_select(&mut new_tiles, o_tiles, state * ncols_1 + range_from(0));
 
-            let sharp_tiles = values.simd_eq(sharp).cast::<isize>() & row_mask;
-            sharp.scatter_select(&mut new_tiles, sharp_tiles, r_idx);
+            let sharp_tiles = values.simd_eq(splat(b'#')).cast::<isize>() & row_mask;
+            splat(b'#').scatter_select(&mut new_tiles, sharp_tiles, r_idx);
 
             state = o_tiles.select(
-                state.saturating_sub(one),
+                state.saturating_sub(splat(1)),
                 sharp_tiles.select(Simd::splat(r.saturating_sub(1)), state),
             );
         }
@@ -111,18 +132,22 @@ where
     {
         let mut state = Simd::splat(ncols - 1);
         for c in (0..ncols).rev() {
-            let c_idx = first_column_idx + Simd::splat(c);
+            let c_idx = range_from_with(0, ncols + 1) + Simd::splat(c);
 
-            let values = Simd::gather_select(&tiles, column_mask, c_idx, zero_u8);
+            let values = Simd::gather_select(&tiles, column_mask, c_idx, splat(0));
 
-            let o_tiles = values.simd_eq(o).cast::<isize>() & column_mask;
-            o.scatter_select(&mut new_tiles, o_tiles, state + first_column_idx);
+            let o_tiles = values.simd_eq(splat(b'O')).cast::<isize>() & column_mask;
+            splat(b'O').scatter_select(
+                &mut new_tiles,
+                o_tiles,
+                state + range_from_with(0, ncols + 1),
+            );
 
-            let sharp_tiles = values.simd_eq(sharp).cast::<isize>() & column_mask;
-            sharp.scatter_select(&mut new_tiles, sharp_tiles, c_idx);
+            let sharp_tiles = values.simd_eq(splat(b'#')).cast::<isize>() & column_mask;
+            splat(b'#').scatter_select(&mut new_tiles, sharp_tiles, c_idx);
 
             state = o_tiles.select(
-                state.saturating_sub(one),
+                state.saturating_sub(splat(1)),
                 sharp_tiles.select(Simd::splat(c.saturating_sub(1)), state),
             );
         }
@@ -144,17 +169,18 @@ where
         "invalid LANES, must be > (nrows, ncols)"
     );
 
-    let sum = (0..nrows).fold(Simd::<usize, LANES>::splat(0), |acc, r| {
-        let idx = Simd::<usize, LANES>::from_slice(&IDX[0..LANES]) + Simd::splat((ncols + 1) * r);
+    let row_mask = Mask::<isize, LANES>::from_array(array::from_fn(|i| i < ncols));
 
-        let o_tiles = Simd::gather_or_default(tiles, idx).simd_eq(Simd::splat(b'O'));
+    let mut acc = splat(0);
+    for r in 0..nrows {
+        let idx = range_from(0) + splat((ncols + 1) * r);
 
-        o_tiles.cast().select(acc + Simd::splat(nrows - r), acc)
-    });
+        let o_tiles = Simd::gather_select(tiles, row_mask, idx, splat(0)).simd_eq(splat(b'O'));
 
-    Mask::from_array(array::from_fn(|i| i < ncols))
-        .select(sum, Simd::splat(0))
-        .reduce_sum()
+        acc = o_tiles.cast().select(acc + splat(nrows - r), acc);
+    }
+
+    row_mask.select(acc, splat(0)).reduce_sum()
 }
 
 #[cfg(test)]
