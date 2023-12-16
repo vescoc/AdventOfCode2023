@@ -1,41 +1,9 @@
 use std::{
     array,
-    simd::{prelude::*, LaneCount, SimdElement, SupportedLaneCount},
+    simd::{prelude::*, LaneCount, SupportedLaneCount},
 };
 
-const fn splat<T, const LANES: usize>(v: T) -> Simd<T, LANES>
-where
-    T: SimdElement,
-    LaneCount<LANES>: SupportedLaneCount,
-{
-    Simd::from_array([v; LANES])
-}
-
-const fn range_from<const LANES: usize>(v: usize) -> Simd<usize, LANES>
-where
-    LaneCount<LANES>: SupportedLaneCount,
-{
-    let mut r = [0; LANES];
-    let mut i = 0;
-    while i < LANES {
-        r[i] = v + i;
-        i += 1;
-    }
-    Simd::from_array(r)
-}
-
-const fn range_from_with<const LANES: usize>(v: usize, inc: usize) -> Simd<usize, LANES>
-where
-    LaneCount<LANES>: SupportedLaneCount,
-{
-    let mut r = [0; LANES];
-    let mut i = 0;
-    while i < LANES {
-        r[i] = v + i * inc;
-        i += 1;
-    }
-    Simd::from_array(r)
-}
+use super::{splat, range_from, range_from_with};
 
 /// Cycle one times.
 /// # Panics
@@ -188,11 +156,12 @@ mod test {
     use lazy_static::lazy_static;
 
     use crate::parse;
-    use crate::simd;
     use crate::simple;
 
+    use super::*;
+
     lazy_static! {
-        static ref EXAMPLE_1: &'static str = include_str!("../../example1");
+        static ref EXAMPLE_1: &'static str = include_str!("../../../example1");
     }
 
     #[test]
@@ -200,7 +169,7 @@ mod test {
         let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
 
         assert_eq!(
-            simd::load::<16>(&tiles, ncols, nrows),
+            load::<16>(&tiles, ncols, nrows),
             simple::load(&tiles, ncols, nrows)
         );
     }
@@ -209,7 +178,7 @@ mod test {
     fn test_same_results_for_cycle() {
         let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
 
-        let simd_r = simd::cycle::<16>(tiles.to_vec(), ncols, nrows);
+        let simd_r = cycle::<16>(tiles.to_vec(), ncols, nrows);
         let simple_r = simple::cycle(tiles.to_vec(), ncols, nrows);
         assert_eq!(
             simd_r,
@@ -225,7 +194,7 @@ mod test {
     fn test_load_with_invalid_lanes() {
         let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
 
-        let _ = simd::load::<8>(&tiles, ncols, nrows);
+        let _ = load::<8>(&tiles, ncols, nrows);
     }
 
     #[test]
@@ -233,6 +202,6 @@ mod test {
     fn test_cycle_with_invalid_lanes() {
         let (tiles, ncols, nrows) = parse(&EXAMPLE_1).unwrap();
 
-        let _ = simd::cycle::<8>(tiles.to_vec(), ncols, nrows);
+        let _ = cycle::<8>(tiles.to_vec(), ncols, nrows);
     }
 }

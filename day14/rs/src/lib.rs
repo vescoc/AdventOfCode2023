@@ -12,9 +12,6 @@ use simple::{cycle, load};
 #[cfg(feature = "simd")]
 pub mod simd;
 
-#[cfg(feature = "simd")]
-pub mod simd2;
-
 lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }

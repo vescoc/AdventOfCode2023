@@ -47,11 +47,11 @@ fn bench_simd(c: &mut Criterion) {
 
     let tiles = tiles.to_vec();
 
-    c.bench_function("simd cycle example 1", |b| {
-        b.iter(|| black_box(simd::cycle::<16>(tiles.clone(), ncols, nrows)))
+    c.bench_function("simd1 cycle example 1", |b| {
+        b.iter(|| black_box(simd::simd1::cycle::<16>(tiles.clone(), ncols, nrows)))
     });
-    c.bench_function("simd load example 1", |b| {
-        b.iter(|| black_box(simd::load::<16>(&tiles, ncols, nrows)))
+    c.bench_function("simd1 load example 1", |b| {
+        b.iter(|| black_box(simd::simd1::load::<16>(&tiles, ncols, nrows)))
     });
 }
 
@@ -63,10 +63,10 @@ fn bench_simd2(c: &mut Criterion) {
         let tiles = tiles.to_vec();
 
         c.bench_function("simd2 cycle example 1", |b| {
-            b.iter(|| black_box(simd2::cycle::<16>(tiles.clone(), ncols, nrows)))
+            b.iter(|| black_box(simd::simd2::cycle::<8>(tiles.clone(), ncols, nrows)))
         });
         c.bench_function("simd2 load example 1", |b| {
-            b.iter(|| black_box(simd2::load::<8>(&tiles, ncols, nrows)))
+            b.iter(|| black_box(simd::simd2::load::<8>(&tiles, ncols, nrows)))
         });
     }
 
@@ -75,11 +75,11 @@ fn bench_simd2(c: &mut Criterion) {
 
         let tiles = tiles.to_vec();
 
-        // c.bench_function("simd2 cycle input", |b| {
-        //     b.iter(|| black_box(simd2::cycle::<16>(tiles.clone(), ncols, nrows)))
-        // });
+        c.bench_function("simd2 cycle input", |b| {
+             b.iter(|| black_box(simd::simd2::cycle::<64>(tiles.clone(), ncols, nrows)))
+        });
         c.bench_function("simd2 load input", |b| {
-            b.iter(|| black_box(simd2::load::<64>(&tiles, ncols, nrows)))
+            b.iter(|| black_box(simd::simd2::load::<64>(&tiles, ncols, nrows)))
         });
     }
 }
