@@ -54,9 +54,9 @@ impl Node {
     }
 
     #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-    fn neighbors<'a, 'b: 'a>(
+    fn neighbors<'a, 'b: 'a, 'c: 'a>(
         &'a self,
-        map: &'a Map<'b>,
+        map: &'c Map<'b>,
     ) -> impl Iterator<Item = (usize, (usize, usize), u32, usize)> + 'a {
         [
             (3, (-1, 0)),
@@ -79,9 +79,9 @@ impl Node {
     }
 
     #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-    fn neighbors_ultracrucible<'a, 'b: 'a>(
+    fn neighbors_ultracrucible<'a, 'b: 'a, 'c: 'a>(
         &'a self,
-        map: &'a Map<'b>,
+        map: &'c Map<'b>,
     ) -> impl Iterator<Item = (usize, (usize, usize), u32, usize)> + 'a {
         [
             (3, (-1, 0)),
@@ -206,7 +206,7 @@ pub fn solve_1(input: &str) -> u32 {
             }
         }
 
-        for (target_direction, target_position, cost, steps) in node.neighbors(&map) {
+        for (target_direction, target_position, cost, steps) in Node::neighbors(&node, &map) {
             let target_cost = node.cost + cost;
             let target_direction_strength = if target_direction == node.direction {
                 node.direction_strength + steps
