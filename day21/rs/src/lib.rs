@@ -25,6 +25,7 @@ fn fill(garden: &[u8], ncols: isize, nrows: isize, start: (isize, isize), steps:
                     if (0..ncols).contains(&x)
                         && (0..nrows).contains(&y)
                         && garden[x as usize + y as usize * (ncols as usize + 1)] != b'#'
+                        && distances[x as usize + y as usize * ncols as usize].is_none()
                     {
                         queue.push_back(((x, y), distance + 1));
                     }
@@ -36,8 +37,8 @@ fn fill(garden: &[u8], ncols: isize, nrows: isize, start: (isize, isize), steps:
     }
 
     distances
-        .into_iter()
-        .filter(|v| {
+        .iter()
+        .filter(|&v| {
             if let Some(distance) = v {
                 distance <= &steps && steps % 2 == distance % 2
             } else {
