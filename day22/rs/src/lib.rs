@@ -62,10 +62,6 @@ impl Brick {
             .zip(self.0.iter())
             .zip(self.1.iter())
             .all(|(((start, end), brick_start), brick_end)| {
-                // start <= brick_start && brick_start <= end
-                //     || start <= brick_end && brick_end <= end
-                //     || brick_start <= start && start <= brick_end
-                //     || brick_start <= end && end <= brick_end
                 (start..=end).contains(&brick_start)
                     || (start..=end).contains(&brick_end)
                     || (brick_start..=brick_end).contains(&start)
@@ -86,17 +82,17 @@ impl Brick {
                 candidate.0[2] == self.1[2] + 1 && candidate.intersect(&self.0[..2], &self.1[..2])
             })
             .all(|candidate| {
-                let f = bricks.iter().filter(|base| base != &self).any(|base| {
+                bricks.iter().filter(|base| base != &self).any(|base| {
                     base.1[2] + 1 == candidate.0[2]
                         && candidate.intersect(&base.0[..2], &base.1[..2])
-                });
-
-                f
+                })
             })
     }
 }
 
 fn fall(mut bricks: Vec<Brick>) -> (Vec<Brick>, usize) {
+    bricks.sort_unstable_by_key(|b| b.0[2]);
+    
     let mut count = 0;
     let mut fallens: Vec<Brick> = Vec::new();
     while let Some(i) = bricks.iter().position(|brick| {
@@ -126,18 +122,19 @@ fn fall(mut bricks: Vec<Brick>) -> (Vec<Brick>, usize) {
     (fallens, count)
 }
 
+fn parse(input: &str) -> Result<Vec<Brick>, &'static str> {
+    input
+        .lines()
+        .map(Brick::from_str)
+        .collect::<Result<Vec<_>, _>>()
+}
+
 /// Solve part 1
 ///
 /// # Panics
 /// Panic if invalid input
 pub fn solve_1(input: &str) -> usize {
-    let bricks = input
-        .lines()
-        .map(Brick::from_str)
-        .collect::<Result<Vec<_>, _>>()
-        .expect("invalid input");
-
-    let (bricks, _) = fall(bricks);
+    let (bricks, _) = fall(parse(input).expect("invalid input"));
 
     #[cfg(feature = "rayon")]
     let i = bricks.par_iter();
@@ -155,14 +152,7 @@ pub fn solve_1(input: &str) -> usize {
 /// # Panics
 /// Panic if invalid input
 pub fn solve_2(input: &str) -> usize {
-    let bricks = input
-        .lines()
-        .map(Brick::from_str)
-        .collect::<Result<Vec<_>, _>>()
-        .expect("invalid input");
-
-    let (bricks, _) = fall(bricks);
-
+    let (bricks, _) = fall(parse(input).expect("invalid input"));
 
     #[cfg(feature = "rayon")]
     let i = bricks.par_iter();
