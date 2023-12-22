@@ -54,19 +54,34 @@ impl FromStr for Brick {
     }
 }
 
+macro_rules! intersect {
+    ($start_a:expr, $end_a:expr, $start_b:expr, $end_b:expr) => {
+        intersect!(@ $start_a[0], $end_a[0], $start_b[0], $end_b[0])
+            && intersect!(@ $start_a[1], $end_a[1], $start_b[1], $end_b[1])
+    };
+
+    (@ $start_a:expr, $end_a:expr, $start_b:expr, $end_b:expr) => {
+        ($start_a <= $start_b && $start_b <= $end_a
+         || $start_a <= $end_b && $end_b <= $end_a
+         || $start_b <= $start_a && $start_a <= $end_b
+         || $start_b <= $end_a && $end_a <= $end_b)
+    };
+}
+
 impl Brick {
     fn intersect(&self, start: &[usize], end: &[usize]) -> bool {
-        start
-            .iter()
-            .zip(end.iter())
-            .zip(self.0.iter())
-            .zip(self.1.iter())
-            .all(|(((start, end), brick_start), brick_end)| {
-                (start..=end).contains(&brick_start)
-                    || (start..=end).contains(&brick_end)
-                    || (brick_start..=brick_end).contains(&start)
-                    || (brick_start..=brick_end).contains(&end)
-            })
+        // start
+        //     .iter()
+        //     .zip(end.iter())
+        //     .zip(self.0.iter())
+        //     .zip(self.1.iter())
+        //     .all(|(((start, end), brick_start), brick_end)| {
+        //         start <= brick_start && brick_start <= end
+        //             || start <= brick_end && brick_start <= end
+        //             || brick_start <= start && start <= brick_end
+        //             || brick_start <= end && start <= brick_end
+        //     })
+        intersect!(self.0, self.1, start, end)
     }
 
     fn fall(&mut self, dz: usize) -> bool {
@@ -91,8 +106,6 @@ impl Brick {
 }
 
 fn fall(mut bricks: Vec<Brick>) -> (Vec<Brick>, usize) {
-    bricks.sort_unstable_by_key(|b| b.0[2]);
-    
     let mut count = 0;
     let mut fallens: Vec<Brick> = Vec::new();
     while let Some(i) = bricks.iter().position(|brick| {
@@ -122,11 +135,20 @@ fn fall(mut bricks: Vec<Brick>) -> (Vec<Brick>, usize) {
     (fallens, count)
 }
 
-fn parse(input: &str) -> Result<Vec<Brick>, &'static str> {
-    input
+/// Parse input
+///
+/// # Panics
+/// Panic if invalid input
+fn parse(input: &str) -> Vec<Brick> {
+    let mut bricks = input
         .lines()
         .map(Brick::from_str)
         .collect::<Result<Vec<_>, _>>()
+        .expect("invalid input");
+
+    bricks.sort_unstable_by_key(|b| b.0[2]);
+
+    bricks
 }
 
 /// Solve part 1
@@ -134,7 +156,7 @@ fn parse(input: &str) -> Result<Vec<Brick>, &'static str> {
 /// # Panics
 /// Panic if invalid input
 pub fn solve_1(input: &str) -> usize {
-    let (bricks, _) = fall(parse(input).expect("invalid input"));
+    let (bricks, _) = fall(parse(input));
 
     #[cfg(feature = "rayon")]
     let i = bricks.par_iter();
@@ -142,9 +164,7 @@ pub fn solve_1(input: &str) -> usize {
     #[cfg(not(feature = "rayon"))]
     let i = bricks.iter();
 
-    i
-        .filter(|brick| brick.removable(&bricks))
-        .count()
+    i.filter(|brick| brick.removable(&bricks)).count()
 }
 
 /// Solve part 2
@@ -152,7 +172,7 @@ pub fn solve_1(input: &str) -> usize {
 /// # Panics
 /// Panic if invalid input
 pub fn solve_2(input: &str) -> usize {
-    let (bricks, _) = fall(parse(input).expect("invalid input"));
+    let (bricks, _) = fall(parse(input));
 
     #[cfg(feature = "rayon")]
     let i = bricks.par_iter();
@@ -160,24 +180,23 @@ pub fn solve_2(input: &str) -> usize {
     #[cfg(not(feature = "rayon"))]
     let i = bricks.iter();
 
-    i
-        .filter_map(|brick| {
-            if brick.removable(&bricks) {
-                None
-            } else {
-                Some(
-                    fall(
-                        bricks
-                            .iter()
-                            .copied()
-                            .filter(|b| b != brick)
-                            .collect::<Vec<_>>(),
-                    )
-                    .1,
+    i.filter_map(|brick| {
+        if brick.removable(&bricks) {
+            None
+        } else {
+            Some(
+                fall(
+                    bricks
+                        .iter()
+                        .copied()
+                        .filter(|b| b != brick)
+                        .collect::<Vec<_>>(),
                 )
-            }
-        })
-        .sum()
+                .1,
+            )
+        }
+    })
+    .sum()
 }
 
 pub fn part_1() -> usize {
