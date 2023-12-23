@@ -5,6 +5,11 @@ use lazy_static::lazy_static;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+#[cfg(feature = "fast")]
+mod transform;
+#[cfg(feature = "fast")]
+use transform::{transform, Set};
+
 lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
@@ -158,27 +163,37 @@ pub fn solve_2(input: &str) -> usize {
         .chain([(1, 0), (ncols - 2, nrows - 1)])
         .collect::<HashSet<_>>();
 
-    let graph = nodes
+    let edges = nodes
         .iter()
         .map(|&node| (node, edges(data, nrows, ncols, &nodes, node)))
         .collect::<HashMap<_, _>>();
 
+    #[cfg(feature = "fast")]
+    let ((edges, start, end), start_path) = (transform(nrows, ncols, nodes, edges), 0_u64);
+
+    #[cfg(not(feature = "fast"))]
+    let (start, end, start_path) = ((1, 0), (ncols - 2, nrows - 1), HashSet::new());
+
     let mut longest_path_len = 0;
 
-    let mut paths = vec![((1, 0), HashSet::new(), 0)];
+    let mut paths = vec![(start, start_path, 0)];
     while let Some((mut node, mut path, mut len)) = paths.pop() {
         loop {
             path.insert(node);
 
-            if node == (ncols - 2, nrows - 1) {
+            if node == end {
                 longest_path_len = longest_path_len.max(len);
                 break;
             }
 
-            let mut next = graph[&node].iter().filter(|(node, _)| !path.contains(node));
+            let mut next = edges[&node].iter().filter(|(node, _)| !path.contains(node));
 
             if let Some((new_node, weight)) = next.next() {
                 for (new_node, new_weight) in next {
+                    #[cfg(feature = "fast")]
+                    paths.push((*new_node, path, len + new_weight));
+
+                    #[cfg(not(feature = "fast"))]
                     paths.push((*new_node, path.clone(), len + new_weight));
                 }
 
