@@ -8,6 +8,12 @@ use lazy_static::lazy_static;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
+#[cfg(feature = "spinlock")]
+mod spinlock;
+
+#[cfg(feature = "spinlock")]
+use spinlock::SpinLock;
+
 lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
@@ -69,19 +75,39 @@ macro_rules! intersect {
 }
 
 impl Brick {
+    #[cfg(not(feature = "spinlock"))]
     fn intersect(&self, start: &[usize], end: &[usize]) -> bool {
-        // start
-        //     .iter()
-        //     .zip(end.iter())
-        //     .zip(self.0.iter())
-        //     .zip(self.1.iter())
-        //     .all(|(((start, end), brick_start), brick_end)| {
-        //         start <= brick_start && brick_start <= end
-        //             || start <= brick_end && brick_start <= end
-        //             || brick_start <= start && start <= brick_end
-        //             || brick_start <= end && start <= brick_end
-        //     })
         intersect!(self.0, self.1, start, end)
+    }
+
+    #[cfg(feature = "spinlock")]
+    fn intersect(&self, start: &[usize], end: &[usize]) -> bool {
+        lazy_static! {
+            static ref MEMOIZE: SpinLock<std::collections::HashMap<[usize; 8], bool>> =
+                SpinLock::new(std::collections::HashMap::with_capacity(1_024));
+        }
+
+        let key1 = [
+            self.0[0], self.0[1], self.1[0], self.1[1], start[0], start[1], end[0], end[1],
+        ];
+        if let Some(value) = MEMOIZE.lock().get(&key1) {
+            return *value;
+        }
+
+        let key2 = [
+            start[0], start[1], end[0], end[1], self.0[0], self.0[1], self.1[0], self.1[1],
+        ];
+        if let Some(value) = MEMOIZE.lock().get(&key2) {
+            return *value;
+        }
+
+        let value = intersect!(self.0, self.1, start, end);
+
+        let map = &mut MEMOIZE.lock();
+        map.insert(key1, value);
+        map.insert(key2, value);
+
+        value
     }
 
     fn fall(&mut self, dz: usize) -> bool {
