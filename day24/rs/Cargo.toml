@@ -3,8 +3,13 @@ name = "day24"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["z3"]
+z3 = ["dep:z3"]
+
 [dependencies]
 lazy_static = "1.4"
+z3 = { version = "0.12.1", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -12,3 +17,6 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "bench"
 harness = false
+
+[profile.release]
+debug = true
