@@ -66,8 +66,15 @@ impl<'a> Vertex<'a> {
         self.0.sort_unstable();
     }
 
-    fn weight(&self, nodes: &HashSet<&'a str>) -> usize {
-        nodes.iter().filter(|node| self.0.contains(node)).count()
+    fn weight(&self, edges: &HashMap<&'a str, HashSet<&'a str>>, t: &Vertex<'a>) -> usize {
+        self.0
+            .iter()
+            .map(|start| {
+                edges[start]
+                    .intersection(&t.0.iter().copied().collect())
+                    .count()
+            })
+            .sum()
     }
 }
 
@@ -78,7 +85,7 @@ fn calculate_neighbors<'a>(
 ) -> BinaryHeap<NeighborEdge<'a>> {
     b.iter()
         .filter_map(|b| {
-            let weight = b.0.iter().map(|end_node| a.weight(&edges[end_node])).sum();
+            let weight = b.weight(edges, a);
             if weight > 0 {
                 Some(NeighborEdge(b.clone(), weight))
             } else {
@@ -171,11 +178,39 @@ pub fn solve_1(input: &str) -> usize {
             s = v;
             a.add(s.clone());
 
-            neighbors = calculate_neighbors(&edges, &a, &b);
+            // recalculate neighbors
+            let mut saved = HashMap::new();
+            neighbors.retain(|NeighborEdge(t, w)| {
+                let weight = s.weight(&edges, t);
+                if weight > 0 {
+                    saved.insert(t.clone(), w + weight);
+                    false
+                } else {
+                    true
+                }
+            });
+            neighbors.append(
+                &mut b
+                    .iter()
+                    .filter_map(|t| {
+                        if let Some((t, weight)) = saved.remove_entry(t) {
+                            Some(NeighborEdge(t, weight))
+                        } else {
+                            let weight = s.weight(&edges, t);
+                            if weight > 0 {
+                                Some(NeighborEdge(t.clone(), weight))
+                            } else {
+                                None
+                            }
+                        }
+                    })
+                    .collect(),
+            );
+            assert!(saved.is_empty());
         }
     }
 
-    assert_eq!(min_cut, 3);
+    assert!(min_cut == 3);
 
     min_a.0.len() * min_b.0.len()
 }
