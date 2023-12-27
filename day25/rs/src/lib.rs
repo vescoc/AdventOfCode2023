@@ -2,13 +2,15 @@
 #![allow(clippy::must_use_candidate)]
 
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
+
+const MAX_N: usize = 2_048 * 2;
 
 type Graph = HashMap<usize, HashMap<usize, usize>>;
 
@@ -55,27 +57,6 @@ impl<T: Ord> Ord for NeighborEdge<T> {
     }
 }
 
-fn calculate_neighbors<T>(
-    edges: &HashMap<T, HashMap<T, usize>>,
-    a: &HashSet<T>,
-    b: &HashSet<T>,
-) -> BinaryHeap<NeighborEdge<T>>
-where
-    T: Ord + std::hash::Hash + Copy,
-{
-    b.iter()
-        .filter_map(|end| {
-            edges[end].iter().find_map(|(start, &weight)| {
-                if a.contains(start) {
-                    Some(NeighborEdge(*end, weight))
-                } else {
-                    None
-                }
-            })
-        })
-        .collect::<BinaryHeap<_>>()
-}
-
 fn transform<'a>(
     edges: &HashMap<&'a str, HashSet<&'a str>>,
 ) -> (Graph, HashMap<usize, Vec<&'a str>>, usize) {
@@ -103,6 +84,66 @@ fn transform<'a>(
         dictionary,
         next_id,
     )
+}
+
+fn min_neighbor(edges: &Graph, max_id: usize, a: &HashSet<usize>, b: &HashSet<usize>) -> usize {
+    const BITS: usize = u128::BITS as usize;
+
+    let mut neighbors = [0; MAX_N];
+    let (v, _) = {
+        let mut mask = [0_u128; MAX_N / BITS + 1];
+        if a.len() > b.len() {
+            for node in a {
+                mask[node / BITS] |= 1 << (node % BITS);
+            }
+
+            b.iter()
+                .flat_map(|end| {
+                    edges[end].iter().filter_map(|(start, weight)| {
+                        if mask[start / BITS] & 1 << (start % BITS) == 0 {
+                            None
+                        } else {
+                            Some((*end, *weight))
+                        }
+                    })
+                })
+                .fold(&mut neighbors, |acc, (node, weight)| {
+                    acc[node] += weight;
+                    acc
+                })
+                .iter()
+                .enumerate()
+                .take(max_id)
+                .max_by_key(|(_, w)| *w)
+                .unwrap()
+        } else {
+            for node in b {
+                mask[node / BITS] |= 1 << (node % BITS);
+            }
+
+            a.iter()
+                .flat_map(|start| {
+                    edges[start].iter().filter_map(|(end, weight)| {
+                        if mask[end / BITS] & 1 << (end % BITS) == 0 {
+                            None
+                        } else {
+                            Some((*end, *weight))
+                        }
+                    })
+                })
+                .fold(&mut neighbors, |acc, (node, weight)| {
+                    acc[node] += weight;
+                    acc
+                })
+                .iter()
+                .enumerate()
+                .take(max_id)
+                .max_by_key(|(_, w)| *w)
+                .unwrap()
+        }
+    };
+
+    v
 }
 
 /// Solve part 1.
@@ -135,7 +176,11 @@ pub fn solve_1(input: &str) -> usize {
 
     let (mut min_a, mut min_b, mut min_cut) = (vec![], vec![], usize::MAX);
 
+    // let mut count = 0;
     loop {
+        // count += 1;
+        // println!("{count}");
+
         let mut nodes = edges.keys();
 
         let start_node = nodes.next().copied().unwrap();
@@ -148,16 +193,12 @@ pub fn solve_1(input: &str) -> usize {
 
         let mut s = start_node;
 
-        let mut neighbors = calculate_neighbors(&edges, &a, &b);
-
         loop {
             if b.len() == 1 {
                 let t = b.into_iter().next().unwrap();
 
-                let cut = neighbors
-                    .into_iter()
-                    .map(|NeighborEdge(_, weight)| weight)
-                    .sum();
+                let cut = edges[&t].values().sum();
+
                 if min_cut > cut {
                     min_a = a.iter().flat_map(|id| dictionary[id].clone()).collect();
                     min_b = dictionary[&t].clone();
@@ -199,42 +240,16 @@ pub fn solve_1(input: &str) -> usize {
                 break;
             }
 
-            let NeighborEdge(v, _) = neighbors.pop().unwrap();
+            let v = min_neighbor(&edges, next_id, &a, &b);
 
             b.remove(&v);
 
             s = v;
             a.insert(s);
-
-            // recalculate neighbors
-            let mut saved = HashMap::new();
-            neighbors.retain(|NeighborEdge(t, w)| {
-                if let Some(weight) = edges[&s].get(t) {
-                    saved.insert(*t, w + weight);
-                    false
-                } else {
-                    true
-                }
-            });
-            neighbors.append(
-                &mut b
-                    .iter()
-                    .filter_map(|t| {
-                        if let Some((t, weight)) = saved.remove_entry(t) {
-                            Some(NeighborEdge(t, weight))
-                        } else {
-                            edges[&s].get(t).map(|weight| NeighborEdge(*t, *weight))
-                        }
-                    })
-                    .collect(),
-            );
-            assert!(saved.is_empty());
         }
     }
 
     assert!(min_cut == 3);
-
-    // println!("{min_a:?} | {min_b:?}");
 
     min_a.len() * min_b.len()
 }
