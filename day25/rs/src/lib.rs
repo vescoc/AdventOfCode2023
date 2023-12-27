@@ -10,6 +10,8 @@ lazy_static! {
     pub static ref INPUT: &'static str = include_str!("../../input");
 }
 
+type Graph = HashMap<usize, HashMap<usize, usize>>;
+
 macro_rules! set {
     () => {
         {
@@ -39,63 +41,73 @@ macro_rules! set {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct NeighborEdge<'a>(Vertex<'a>, usize);
+struct NeighborEdge<T>(T, usize);
 
-impl PartialOrd for NeighborEdge<'_> {
+impl<T: Ord> PartialOrd for NeighborEdge<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for NeighborEdge<'_> {
+impl<T: Ord> Ord for NeighborEdge<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.1.cmp(&other.1)
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-struct Vertex<'a>(Vec<&'a str>);
-
-impl<'a> Vertex<'a> {
-    fn new(node: &'a str) -> Self {
-        Self(vec![node])
-    }
-
-    fn add(&mut self, mut node: Self) {
-        self.0.append(&mut node.0);
-        self.0.sort_unstable();
-    }
-
-    fn weight(&self, edges: &HashMap<&'a str, HashSet<&'a str>>, t: &Vertex<'a>) -> usize {
-        self.0
-            .iter()
-            .map(|start| {
-                edges[start]
-                    .intersection(&t.0.iter().copied().collect())
-                    .count()
-            })
-            .sum()
-    }
-}
-
-fn calculate_neighbors<'a>(
-    edges: &HashMap<&'a str, HashSet<&'a str>>,
-    a: &Vertex<'a>,
-    b: &HashSet<Vertex<'a>>,
-) -> BinaryHeap<NeighborEdge<'a>> {
+fn calculate_neighbors<T>(
+    edges: &HashMap<T, HashMap<T, usize>>,
+    a: &HashSet<T>,
+    b: &HashSet<T>,
+) -> BinaryHeap<NeighborEdge<T>>
+where
+    T: Ord + std::hash::Hash + Copy,
+{
     b.iter()
-        .filter_map(|b| {
-            let weight = b.weight(edges, a);
-            if weight > 0 {
-                Some(NeighborEdge(b.clone(), weight))
-            } else {
-                None
-            }
+        .filter_map(|end| {
+            edges[end].iter().find_map(|(start, &weight)| {
+                if a.contains(start) {
+                    Some(NeighborEdge(*end, weight))
+                } else {
+                    None
+                }
+            })
         })
         .collect::<BinaryHeap<_>>()
 }
 
-/// Solve part 1
+fn transform<'a>(
+    edges: &HashMap<&'a str, HashSet<&'a str>>,
+) -> (Graph, HashMap<usize, Vec<&'a str>>, usize) {
+    let nodes = edges.keys().copied().collect::<Vec<_>>();
+    let dictionary = nodes
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(i, n)| (i, vec![n]))
+        .collect::<HashMap<_, _>>();
+    let str2id = nodes
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(i, n)| (n, i))
+        .collect::<HashMap<_, _>>();
+
+    let next_id = dictionary.keys().max().unwrap() + 1;
+
+    (
+        edges
+            .iter()
+            .map(|(n, es)| (str2id[n], es.iter().map(|n| (str2id[n], 1)).collect()))
+            .collect(),
+        dictionary,
+        next_id,
+    )
+}
+
+/// Solve part 1.
+///
+/// Using Stoer-Wagner algorithm.
 ///
 /// # Panics
 /// Panic if invalid input
@@ -119,31 +131,22 @@ pub fn solve_1(input: &str) -> usize {
         }
     }
 
-    let mut graph = edges
-        .keys()
-        .copied()
-        .map(Vertex::new)
-        .collect::<HashSet<_>>();
+    let (mut edges, mut dictionary, mut next_id) = transform(&edges);
 
-    let (mut min_a, mut min_b, mut min_cut) = (
-        Vertex::new("<invalid>"),
-        Vertex::new("<invalid>"),
-        usize::MAX,
-    );
+    let (mut min_a, mut min_b, mut min_cut) = (vec![], vec![], usize::MAX);
 
     loop {
-        let mut nodes = graph.iter();
+        let mut nodes = edges.keys();
 
-        let start_node = nodes.next().unwrap();
+        let start_node = nodes.next().copied().unwrap();
 
-        let mut a = start_node.clone();
-        let mut b = nodes.cloned().collect::<HashSet<_>>();
-
+        let mut a = set! {start_node};
+        let mut b = nodes.copied().collect::<HashSet<_>>();
         if b.is_empty() {
             break;
         }
 
-        let mut s = start_node.clone();
+        let mut s = start_node;
 
         let mut neighbors = calculate_neighbors(&edges, &a, &b);
 
@@ -156,17 +159,42 @@ pub fn solve_1(input: &str) -> usize {
                     .map(|NeighborEdge(_, weight)| weight)
                     .sum();
                 if min_cut > cut {
-                    min_a = a.clone();
-                    min_b = t.clone();
+                    min_a = a.iter().flat_map(|id| dictionary[id].clone()).collect();
+                    min_b = dictionary[&t].clone();
                     min_cut = cut;
                 }
 
-                graph.remove(&s);
-                graph.remove(&t);
+                let ss = edges
+                    .remove(&s)
+                    .unwrap()
+                    .keys()
+                    .copied()
+                    .collect::<HashSet<_>>();
+                let ts = edges
+                    .remove(&t)
+                    .unwrap()
+                    .keys()
+                    .copied()
+                    .collect::<HashSet<_>>();
 
-                s.add(t);
+                let oes = ss.union(&ts);
 
-                graph.insert(s.clone());
+                let st = next_id;
+                next_id += 1;
+
+                let mut es = HashMap::new();
+                for node in oes {
+                    if let Some(ee) = edges.get_mut(node) {
+                        let weight = ee.remove(&s).unwrap_or(0) + ee.remove(&t).unwrap_or(0);
+                        ee.insert(st, weight);
+                        es.insert(*node, weight);
+                    }
+                }
+                edges.insert(st, es);
+
+                let mut sts = dictionary[&s].clone();
+                sts.append(&mut dictionary[&t].clone());
+                dictionary.insert(st, sts);
 
                 break;
             }
@@ -176,14 +204,13 @@ pub fn solve_1(input: &str) -> usize {
             b.remove(&v);
 
             s = v;
-            a.add(s.clone());
+            a.insert(s);
 
             // recalculate neighbors
             let mut saved = HashMap::new();
             neighbors.retain(|NeighborEdge(t, w)| {
-                let weight = s.weight(&edges, t);
-                if weight > 0 {
-                    saved.insert(t.clone(), w + weight);
+                if let Some(weight) = edges[&s].get(t) {
+                    saved.insert(*t, w + weight);
                     false
                 } else {
                     true
@@ -196,12 +223,7 @@ pub fn solve_1(input: &str) -> usize {
                         if let Some((t, weight)) = saved.remove_entry(t) {
                             Some(NeighborEdge(t, weight))
                         } else {
-                            let weight = s.weight(&edges, t);
-                            if weight > 0 {
-                                Some(NeighborEdge(t.clone(), weight))
-                            } else {
-                                None
-                            }
+                            edges[&s].get(t).map(|weight| NeighborEdge(*t, *weight))
                         }
                     })
                     .collect(),
@@ -212,7 +234,9 @@ pub fn solve_1(input: &str) -> usize {
 
     assert!(min_cut == 3);
 
-    min_a.0.len() * min_b.0.len()
+    // println!("{min_a:?} | {min_b:?}");
+
+    min_a.len() * min_b.len()
 }
 
 /// Solve part 2
