@@ -3,6 +3,7 @@
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::{fmt, iter};
 
 use lazy_static::lazy_static;
 
@@ -13,6 +14,129 @@ lazy_static! {
 const MAX_N: usize = 2_048 * 2;
 
 type Graph = HashMap<usize, HashMap<usize, usize>>;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct BitSet {
+    data: Vec<u128>,
+    len: usize,
+}
+
+impl BitSet {
+    const BITS: usize = u128::BITS as usize;
+
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            data: vec![0; capacity / Self::BITS + usize::from(capacity % Self::BITS == 0)],
+            len: 0,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn contains(&self, value: usize) -> bool {
+        if let Some(mask) = self.data.get(value / Self::BITS) {
+            mask & 1 << (value % Self::BITS) != 0
+        } else {
+            false
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+        let mut current = 0;
+        iter::from_fn(move || {
+            while let Some(mask) = self.data.get(current / Self::BITS) {
+                if mask & 1 << (current % Self::BITS) == 0 {
+                    current += 1;
+                } else {
+                    let r = Some(current);
+                    current += 1;
+                    return r;
+                }
+            }
+            None
+        })
+    }
+
+    fn insert(&mut self, value: usize) {
+        let i = value / Self::BITS;
+        while self.data.len() <= i {
+            self.data.push(0);
+        }
+        let mask = &mut self.data[i];
+        let b = 1 << (value % Self::BITS);
+        self.len += usize::from(*mask & b == 0);
+        *mask |= b;
+    }
+
+    fn remove(&mut self, value: usize) {
+        if let Some(mask) = self.data.get_mut(value / Self::BITS) {
+            let b = 1 << (value % Self::BITS);
+            self.len -= usize::from(*mask & b != 0);
+            *mask &= !b;
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn into_iter(self) -> impl Iterator<Item = usize> {
+        let mut current = 0;
+        iter::from_fn(move || {
+            while let Some(mask) = self.data.get(current / Self::BITS) {
+                if mask & 1 << (current % Self::BITS) == 0 {
+                    current += 1;
+                } else {
+                    let r = Some(current);
+                    current += 1;
+                    return r;
+                }
+            }
+            None
+        })
+    }
+}
+
+impl FromIterator<usize> for BitSet {
+    fn from_iter<II: IntoIterator<Item = usize>>(ii: II) -> Self {
+        let mut data = Vec::new();
+        let mut len = 0;
+        for value in ii {
+            let i = value / Self::BITS;
+            while data.len() <= i {
+                data.push(0);
+            }
+            let mask = &mut data[i];
+            let b = 1 << (value % Self::BITS);
+            len += usize::from(*mask & b == 0);
+            *mask |= b;
+        }
+
+        BitSet { data, len }
+    }
+}
+
+impl fmt::Debug for BitSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{{")?;
+
+        let mut first = true;
+        for value in self.iter() {
+            if first {
+                first = false;
+            } else {
+                write!(f, ", ")?;
+            }
+
+            write!(f, "{value}")?;
+        }
+        write!(f, "}}")?;
+
+        Ok(())
+    }
+}
 
 macro_rules! set {
     () => {
@@ -86,24 +210,17 @@ fn transform<'a>(
     )
 }
 
-fn min_neighbor(edges: &Graph, max_id: usize, a: &HashSet<usize>, b: &HashSet<usize>) -> usize {
-    const BITS: usize = u128::BITS as usize;
-
+fn min_neighbor(edges: &Graph, max_id: usize, a: &BitSet, b: &BitSet) -> usize {
     let mut neighbors = [0; MAX_N];
     let (v, _) = {
-        let mut mask = [0_u128; MAX_N / BITS + 1];
         if a.len() > b.len() {
-            for node in a {
-                mask[node / BITS] |= 1 << (node % BITS);
-            }
-
             b.iter()
                 .flat_map(|end| {
-                    edges[end].iter().filter_map(|(start, weight)| {
-                        if mask[start / BITS] & 1 << (start % BITS) == 0 {
-                            None
+                    edges[&end].iter().filter_map(move |(start, weight)| {
+                        if a.contains(*start) {
+                            Some((end, *weight))
                         } else {
-                            Some((*end, *weight))
+                            None
                         }
                     })
                 })
@@ -117,17 +234,13 @@ fn min_neighbor(edges: &Graph, max_id: usize, a: &HashSet<usize>, b: &HashSet<us
                 .max_by_key(|(_, w)| *w)
                 .unwrap()
         } else {
-            for node in b {
-                mask[node / BITS] |= 1 << (node % BITS);
-            }
-
             a.iter()
                 .flat_map(|start| {
-                    edges[start].iter().filter_map(|(end, weight)| {
-                        if mask[end / BITS] & 1 << (end % BITS) == 0 {
-                            None
-                        } else {
+                    edges[&start].iter().filter_map(|(end, weight)| {
+                        if b.contains(*end) {
                             Some((*end, *weight))
+                        } else {
+                            None
                         }
                     })
                 })
@@ -185,8 +298,10 @@ pub fn solve_1(input: &str) -> usize {
 
         let start_node = nodes.next().copied().unwrap();
 
-        let mut a = set! {start_node};
-        let mut b = nodes.copied().collect::<HashSet<_>>();
+        let mut a = BitSet::with_capacity(next_id);
+        a.insert(start_node);
+
+        let mut b = nodes.copied().collect::<BitSet>();
         if b.is_empty() {
             break;
         }
@@ -200,7 +315,7 @@ pub fn solve_1(input: &str) -> usize {
                 let cut = edges[&t].values().sum();
 
                 if min_cut > cut {
-                    min_a = a.iter().flat_map(|id| dictionary[id].clone()).collect();
+                    min_a = a.iter().flat_map(|id| dictionary[&id].clone()).collect();
                     min_b = dictionary[&t].clone();
                     min_cut = cut;
                 }
@@ -242,7 +357,7 @@ pub fn solve_1(input: &str) -> usize {
 
             let v = min_neighbor(&edges, next_id, &a, &b);
 
-            b.remove(&v);
+            b.remove(v);
 
             s = v;
             a.insert(s);
