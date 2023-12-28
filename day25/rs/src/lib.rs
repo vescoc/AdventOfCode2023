@@ -13,16 +13,78 @@ lazy_static! {
 
 const MAX_N: usize = 2_048 * 2;
 
-type Graph = HashMap<usize, HashMap<usize, usize>>;
+struct Graph {
+    n: usize,
+    nodes: BitSet,
+    edges: Vec<usize>,
+}
+
+impl Graph {
+    fn neighbors(&self, node: usize) -> Edges {
+        Edges {
+            edges: &self.edges[node * self.n..(node + 1) * self.n],
+            nodes: &self.nodes,
+        }
+    }
+
+    fn nodes(&self) -> impl Iterator<Item = usize> + '_ {
+        self.nodes.iter()
+    }
+
+    fn merge(&mut self, s: usize, t: usize, st: usize) {
+        for (node, weight) in self.neighbors(s).iter().collect::<Vec<_>>() {
+            self.edges[node + st * self.n] += weight;
+            self.edges[st + node * self.n] += weight;
+        }
+        
+        for (node, weight) in self.neighbors(t).iter().collect::<Vec<_>>() {
+            self.edges[node + st * self.n] += weight;
+            self.edges[st + node * self.n] += weight;
+        }
+        
+        self.nodes.insert(st);
+        self.nodes.remove(s);
+        self.nodes.remove(t);
+    }
+}
+
+struct Edges<'a> {
+    edges: &'a [usize],
+    nodes: &'a BitSet,
+}
+
+impl<'a> Edges<'a> {
+    fn iter(&'a self) -> impl Iterator<Item = (usize, usize)> + 'a {
+        self.nodes.iter().filter_map(|node| {
+            let weight = self.edges[node];
+            if weight > 0 {
+                Some((node, weight))
+            } else {
+                None
+            }
+        })
+    }
+
+    fn sum(&self) -> usize {
+        self.nodes.iter().map(|node| self.edges[node]).sum()
+    }
+
+    #[allow(dead_code)]
+    fn nodes(&self) -> BitSet {
+        self.iter().map(|(node, _)| node).collect::<BitSet>()
+    }
+}
+
+type BitSetType = u128;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct BitSet {
-    data: Vec<u128>,
+    data: Vec<BitSetType>,
     len: usize,
 }
 
 impl BitSet {
-    const BITS: usize = u128::BITS as usize;
+    const BITS: usize = BitSetType::BITS as usize;
 
     fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -33,6 +95,23 @@ impl BitSet {
 
     fn len(&self) -> usize {
         self.len
+    }
+
+    #[allow(dead_code)]
+    fn union(&self, other: &Self) -> BitSet {
+        let n = self.data.len().max(other.data.len());
+        let mut data = Vec::with_capacity(n);
+        let mut len = 0;
+
+        let ai = self.data.iter().copied().chain(iter::repeat(0));
+        let bi = other.data.iter().copied().chain(iter::repeat(0));
+        for (a, b) in ai.zip(bi).take(n) {
+            let r = a | b;
+            len += r.count_ones() as usize;
+            data.push(r);
+        }
+
+        Self { data, len }
     }
 
     fn contains(&self, value: usize) -> bool {
@@ -47,12 +126,19 @@ impl BitSet {
         let mut current = 0;
         iter::from_fn(move || {
             while let Some(mask) = self.data.get(current / Self::BITS) {
-                if mask & 1 << (current % Self::BITS) == 0 {
-                    current += 1;
-                } else {
-                    let r = Some(current);
-                    current += 1;
-                    return r;
+                let mut b = 1 << (current % Self::BITS);
+                loop {
+                    if mask & b == 0 {
+                        current += 1;
+                        if current % Self::BITS == 0 {
+                            break;
+                        }
+                        b <<= 1;
+                    } else {
+                        let r = Some(current);
+                        current += 1;
+                        return r;
+                    }
                 }
             }
             None
@@ -86,12 +172,19 @@ impl BitSet {
         let mut current = 0;
         iter::from_fn(move || {
             while let Some(mask) = self.data.get(current / Self::BITS) {
-                if mask & 1 << (current % Self::BITS) == 0 {
-                    current += 1;
-                } else {
-                    let r = Some(current);
-                    current += 1;
-                    return r;
+                let mut b = 1 << (current % Self::BITS);
+                loop {
+                    if mask & b == 0 {
+                        current += 1;
+                        if current % Self::BITS == 0 {
+                            break;
+                        }
+                        b <<= 1;
+                    } else {
+                        let r = Some(current);
+                        current += 1;
+                        return r;
+                    }
                 }
             }
             None
@@ -200,60 +293,50 @@ fn transform<'a>(
 
     let next_id = dictionary.keys().max().unwrap() + 1;
 
+    let n = next_id * 2;
+    let nodes = dictionary.keys().copied().collect::<BitSet>();
+    let edges = {
+        let mut res = vec![0; n * n];
+        for (start, es) in edges {
+            for end in es {
+                res[str2id[start] + str2id[end] * n] = 1;
+            }
+        }
+        res
+    };
+
     (
-        edges
-            .iter()
-            .map(|(n, es)| (str2id[n], es.iter().map(|n| (str2id[n], 1)).collect()))
-            .collect(),
+        Graph { n, nodes, edges },
         dictionary,
         next_id,
     )
 }
 
-fn min_neighbor(edges: &Graph, max_id: usize, a: &BitSet, b: &BitSet) -> usize {
+fn min_neighbor(edges: &Graph, a: &BitSet, b: &BitSet) -> usize {
     let mut neighbors = [0; MAX_N];
+    let mut n = 0;
     let (v, _) = {
         if a.len() > b.len() {
-            b.iter()
-                .flat_map(|end| {
-                    edges[&end].iter().filter_map(move |(start, weight)| {
-                        if a.contains(*start) {
-                            Some((end, *weight))
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .fold(&mut neighbors, |acc, (node, weight)| {
-                    acc[node] += weight;
-                    acc
-                })
-                .iter()
-                .enumerate()
-                .take(max_id)
-                .max_by_key(|(_, w)| *w)
-                .unwrap()
+            for end in b.iter() {
+                for (start, weight) in edges.neighbors(end).iter() {
+                    if a.contains(start) {
+                        neighbors[end] += weight;
+                        n = n.max(end);
+                    }
+                }
+            }
         } else {
-            a.iter()
-                .flat_map(|start| {
-                    edges[&start].iter().filter_map(|(end, weight)| {
-                        if b.contains(*end) {
-                            Some((*end, *weight))
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .fold(&mut neighbors, |acc, (node, weight)| {
-                    acc[node] += weight;
-                    acc
-                })
-                .iter()
-                .enumerate()
-                .take(max_id)
-                .max_by_key(|(_, w)| *w)
-                .unwrap()
+            for start in a.iter() {
+                for (end, weight) in edges.neighbors(start).iter() {
+                    if b.contains(end) {
+                        neighbors[end] += weight;
+                        n = n.max(end);
+                    }
+                }
+            }
         }
+
+        neighbors.iter().take(n + 1).enumerate().max_by_key(|(_, w)| *w).unwrap()
     };
 
     v
@@ -294,14 +377,14 @@ pub fn solve_1(input: &str) -> usize {
         // count += 1;
         // println!("{count}");
 
-        let mut nodes = edges.keys();
+        let mut nodes = edges.nodes();
 
-        let start_node = nodes.next().copied().unwrap();
+        let start_node = nodes.next().unwrap();
 
         let mut a = BitSet::with_capacity(next_id);
         a.insert(start_node);
 
-        let mut b = nodes.copied().collect::<BitSet>();
+        let mut b = nodes.collect::<BitSet>();
         if b.is_empty() {
             break;
         }
@@ -312,41 +395,17 @@ pub fn solve_1(input: &str) -> usize {
             if b.len() == 1 {
                 let t = b.into_iter().next().unwrap();
 
-                let cut = edges[&t].values().sum();
-
+                let cut = edges.neighbors(t).sum();
                 if min_cut > cut {
                     min_a = a.iter().flat_map(|id| dictionary[&id].clone()).collect();
                     min_b = dictionary[&t].clone();
                     min_cut = cut;
                 }
 
-                let ss = edges
-                    .remove(&s)
-                    .unwrap()
-                    .keys()
-                    .copied()
-                    .collect::<HashSet<_>>();
-                let ts = edges
-                    .remove(&t)
-                    .unwrap()
-                    .keys()
-                    .copied()
-                    .collect::<HashSet<_>>();
-
-                let oes = ss.union(&ts);
-
                 let st = next_id;
                 next_id += 1;
-
-                let mut es = HashMap::new();
-                for node in oes {
-                    if let Some(ee) = edges.get_mut(node) {
-                        let weight = ee.remove(&s).unwrap_or(0) + ee.remove(&t).unwrap_or(0);
-                        ee.insert(st, weight);
-                        es.insert(*node, weight);
-                    }
-                }
-                edges.insert(st, es);
+                
+                edges.merge(s, t, st);
 
                 let mut sts = dictionary[&s].clone();
                 sts.append(&mut dictionary[&t].clone());
@@ -355,7 +414,7 @@ pub fn solve_1(input: &str) -> usize {
                 break;
             }
 
-            let v = min_neighbor(&edges, next_id, &a, &b);
+            let v = min_neighbor(&edges, &a, &b);
 
             b.remove(v);
 
