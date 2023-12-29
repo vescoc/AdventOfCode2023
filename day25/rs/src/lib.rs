@@ -2,8 +2,8 @@
 #![allow(clippy::must_use_candidate)]
 
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
-use std::{fmt, iter};
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::{cmp, fmt, iter};
 
 use lazy_static::lazy_static;
 
@@ -12,6 +12,21 @@ lazy_static! {
 }
 
 const MAX_N: usize = 2_048 * 2;
+
+#[derive(Debug, PartialEq, Eq)]
+struct EdgeInfo(usize, usize);
+
+impl cmp::PartialOrd for EdgeInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl cmp::Ord for EdgeInfo {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.1.cmp(&other.1).then_with(|| self.0.cmp(&other.0))
+    }
+}
 
 struct Graph {
     n: usize,
@@ -36,12 +51,12 @@ impl Graph {
             self.edges[node + st * self.n] += weight;
             self.edges[st + node * self.n] += weight;
         }
-        
+
         for (node, weight) in self.neighbors(t).iter().collect::<Vec<_>>() {
             self.edges[node + st * self.n] += weight;
             self.edges[st + node * self.n] += weight;
         }
-        
+
         self.nodes.insert(st);
         self.nodes.remove(s);
         self.nodes.remove(t);
@@ -73,9 +88,22 @@ impl<'a> Edges<'a> {
     fn nodes(&self) -> BitSet {
         self.iter().map(|(node, _)| node).collect::<BitSet>()
     }
+
+    fn get(&self, node: usize) -> Option<usize> {
+        if self.nodes.contains(node) {
+            let weight = self.edges[node];
+            if weight > 0 {
+                Some(weight)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
-type BitSetType = u128;
+type BitSetType = u64;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct BitSet {
@@ -86,6 +114,14 @@ struct BitSet {
 impl BitSet {
     const BITS: usize = BitSetType::BITS as usize;
 
+    fn new() -> Self {
+        Self {
+            data: vec![],
+            len: 0,
+        }
+    }
+
+    #[allow(dead_code)]
     fn with_capacity(capacity: usize) -> Self {
         Self {
             data: vec![0; capacity / Self::BITS + usize::from(capacity % Self::BITS == 0)],
@@ -126,18 +162,22 @@ impl BitSet {
         let mut current = 0;
         iter::from_fn(move || {
             while let Some(mask) = self.data.get(current / Self::BITS) {
-                let mut b = 1 << (current % Self::BITS);
-                loop {
-                    if mask & b == 0 {
-                        current += 1;
-                        if current % Self::BITS == 0 {
-                            break;
+                if *mask == 0 {
+                    current = (current / Self::BITS + 1) * Self::BITS;
+                } else {
+                    let mut b = 1 << (current % Self::BITS);
+                    loop {
+                        if mask & b == 0 {
+                            current += 1;
+                            if current % Self::BITS == 0 {
+                                break;
+                            }
+                            b <<= 1;
+                        } else {
+                            let r = Some(current);
+                            current += 1;
+                            return r;
                         }
-                        b <<= 1;
-                    } else {
-                        let r = Some(current);
-                        current += 1;
-                        return r;
                     }
                 }
             }
@@ -172,18 +212,22 @@ impl BitSet {
         let mut current = 0;
         iter::from_fn(move || {
             while let Some(mask) = self.data.get(current / Self::BITS) {
-                let mut b = 1 << (current % Self::BITS);
-                loop {
-                    if mask & b == 0 {
-                        current += 1;
-                        if current % Self::BITS == 0 {
-                            break;
+                if *mask == 0 {
+                    current = (current / Self::BITS + 1) * Self::BITS;
+                } else {
+                    let mut b = 1 << (current % Self::BITS);
+                    loop {
+                        if mask & b == 0 {
+                            current += 1;
+                            if current % Self::BITS == 0 {
+                                break;
+                            }
+                            b <<= 1;
+                        } else {
+                            let r = Some(current);
+                            current += 1;
+                            return r;
                         }
-                        b <<= 1;
-                    } else {
-                        let r = Some(current);
-                        current += 1;
-                        return r;
                     }
                 }
             }
@@ -305,17 +349,13 @@ fn transform<'a>(
         res
     };
 
-    (
-        Graph { n, nodes, edges },
-        dictionary,
-        next_id,
-    )
+    (Graph { n, nodes, edges }, dictionary, next_id)
 }
 
-fn min_neighbor(edges: &Graph, a: &BitSet, b: &BitSet) -> usize {
-    let mut neighbors = [0; MAX_N];
-    let mut n = 0;
-    let (v, _) = {
+fn min_neighbor(edges: &Graph, a: &BitSet, b: &BitSet, heap: &mut BinaryHeap<EdgeInfo>) -> usize {
+    if heap.is_empty() {
+        let mut neighbors = [0; MAX_N];
+        let mut n = 0;
         if a.len() > b.len() {
             for end in b.iter() {
                 for (start, weight) in edges.neighbors(end).iter() {
@@ -336,10 +376,68 @@ fn min_neighbor(edges: &Graph, a: &BitSet, b: &BitSet) -> usize {
             }
         }
 
-        neighbors.iter().take(n + 1).enumerate().max_by_key(|(_, w)| *w).unwrap()
-    };
+        *heap = neighbors
+            .iter()
+            .take(n + 1)
+            .enumerate()
+            .filter_map(|(n, &w)| if w > 0 { Some(EdgeInfo(n, w)) } else { None })
+            .collect::<BinaryHeap<_>>();
+    }
 
-    v
+    heap.pop().unwrap().0
+}
+
+fn adjust_data(
+    edges: &Graph,
+    s: usize,
+    a: &mut BitSet,
+    b: &mut BitSet,
+    heap: &mut BinaryHeap<EdgeInfo>,
+) {
+    assert!(
+        heap.iter().all(|EdgeInfo(v, _)| !a.contains(*v)),
+        "invalid heap pre"
+    );
+
+    // remove from heap every edge n in a | n -> s
+    // add into heap every edge n in s neighbors not a
+    // adjust weight edges in a with weigh s
+
+    let s_edges = edges.neighbors(s);
+    let mut s_neighbors = s_edges.nodes();
+
+    let mut es = vec![];
+    heap.retain(|EdgeInfo(v, w)| {
+        if *v == s {
+            false
+        } else if let Some(weight) = s_edges.get(*v) {
+            es.push((*v, w + weight));
+            s_neighbors.remove(*v);
+            false
+        } else {
+            true
+        }
+    });
+
+    for (e, w) in es {
+        heap.push(EdgeInfo(e, w));
+    }
+
+    for n in s_neighbors.iter() {
+        if !a.contains(n) {
+            if let Some(w) = s_edges.get(n) {
+                heap.push(EdgeInfo(n, w));
+            }
+        }
+    }
+
+    b.remove(s);
+    a.insert(s);
+
+    assert!(
+        heap.iter().all(|EdgeInfo(v, _)| !a.contains(*v)),
+        "invalid heap post"
+    );
 }
 
 /// Solve part 1.
@@ -381,7 +479,7 @@ pub fn solve_1(input: &str) -> usize {
 
         let start_node = nodes.next().unwrap();
 
-        let mut a = BitSet::with_capacity(next_id);
+        let mut a = BitSet::new();
         a.insert(start_node);
 
         let mut b = nodes.collect::<BitSet>();
@@ -390,6 +488,8 @@ pub fn solve_1(input: &str) -> usize {
         }
 
         let mut s = start_node;
+
+        let mut heap = BinaryHeap::new();
 
         loop {
             if b.len() == 1 {
@@ -404,7 +504,7 @@ pub fn solve_1(input: &str) -> usize {
 
                 let st = next_id;
                 next_id += 1;
-                
+
                 edges.merge(s, t, st);
 
                 let mut sts = dictionary[&s].clone();
@@ -414,12 +514,13 @@ pub fn solve_1(input: &str) -> usize {
                 break;
             }
 
-            let v = min_neighbor(&edges, &a, &b);
-
-            b.remove(v);
+            let v = min_neighbor(&edges, &a, &b, &mut heap);
 
             s = v;
-            a.insert(s);
+
+            adjust_data(&edges, s, &mut a, &mut b, &mut heap);
+
+            // println!("{s} {a:?} {b:?} {heap:?}");
         }
     }
 
