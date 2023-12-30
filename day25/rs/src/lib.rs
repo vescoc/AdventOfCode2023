@@ -42,6 +42,7 @@ impl Graph {
         }
     }
 
+    #[allow(dead_code)]
     fn nodes(&self) -> impl Iterator<Item = usize> + '_ {
         self.nodes.iter()
     }
@@ -158,6 +159,7 @@ impl BitSet {
         }
     }
 
+    #[allow(dead_code)]
     fn iter(&self) -> impl Iterator<Item = usize> + '_ {
         let mut current = 0;
         iter::from_fn(move || {
@@ -172,10 +174,69 @@ impl BitSet {
                             if current % Self::BITS == 0 {
                                 break;
                             }
+
                             b <<= 1;
                         } else {
                             let r = Some(current);
+
                             current += 1;
+
+                            return r;
+                        }
+                    }
+                }
+            }
+            None
+        })
+    }
+
+    #[allow(dead_code)]
+    fn iter_split(&self) -> impl Iterator<Item = usize> + '_ {
+        let (mut mask, mut rest) = self
+            .data
+            .split_first()
+            .map_or((None, &self.data[..]), |(mask, rest)| (Some(mask), rest));
+        let mut index = 0;
+        let mut b = 1;
+        let mut index_b = 0;
+        iter::from_fn(move || {
+            while let Some(m) = mask {
+                if *m == 0 {
+                    b = 1;
+                    index_b = 0;
+                    index += 1;
+                    (mask, rest) = rest
+                        .split_first()
+                        .map_or((None, rest), |(mask, rest)| (Some(mask), rest));
+                } else {
+                    loop {
+                        if m & b == 0 {
+                            index_b += 1;
+                            if index_b == Self::BITS {
+                                b = 1;
+                                index_b = 0;
+                                index += 1;
+                                (mask, rest) = rest
+                                    .split_first()
+                                    .map_or((None, rest), |(mask, rest)| (Some(mask), rest));
+                                break;
+                            }
+
+                            b <<= 1;
+                        } else {
+                            let r = Some(index * Self::BITS + index_b);
+                            index_b += 1;
+                            if index_b == Self::BITS {
+                                b = 1;
+                                index_b = 0;
+                                index += 1;
+                                (mask, rest) = rest
+                                    .split_first()
+                                    .map_or((None, rest), |(mask, rest)| (Some(mask), rest));
+                            } else {
+                                b <<= 1;
+                            }
+
                             return r;
                         }
                     }
@@ -207,32 +268,77 @@ impl BitSet {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
 
-    fn into_iter(self) -> impl Iterator<Item = usize> {
-        let mut current = 0;
-        iter::from_fn(move || {
-            while let Some(mask) = self.data.get(current / Self::BITS) {
-                if *mask == 0 {
-                    current = (current / Self::BITS + 1) * Self::BITS;
-                } else {
-                    let mut b = 1 << (current % Self::BITS);
-                    loop {
-                        if mask & b == 0 {
-                            current += 1;
-                            if current % Self::BITS == 0 {
-                                break;
-                            }
-                            b <<= 1;
-                        } else {
-                            let r = Some(current);
-                            current += 1;
-                            return r;
+struct BitSetIter {
+    mask: Option<BitSetType>,
+    rest: std::vec::IntoIter<BitSetType>,
+    index: usize,
+    b: BitSetType,
+    index_b: usize,
+}
+
+impl Iterator for BitSetIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(mask) = self.mask {
+            if mask == 0 {
+                self.b = 1;
+                self.index_b = 0;
+                self.index += 1;
+                self.mask = self.rest.next();
+            } else {
+                loop {
+                    if mask & self.b == 0 {
+                        self.index_b += 1;
+                        if self.index_b == BitSet::BITS {
+                            self.b = 1;
+                            self.index_b = 0;
+                            self.index += 1;
+                            self.mask = self.rest.next();
+                            break;
                         }
+
+                        self.b <<= 1;
+                    } else {
+                        let r = Some(self.index * BitSet::BITS + self.index_b);
+                        self.index_b += 1;
+                        if self.index_b == BitSet::BITS {
+                            self.b = 1;
+                            self.index_b = 0;
+                            self.index += 1;
+                            self.mask = self.rest.next();
+                        } else {
+                            self.b <<= 1;
+                        }
+                        return r;
                     }
                 }
             }
-            None
-        })
+        }
+        None
+    }
+}
+
+impl IntoIterator for BitSet {
+    type Item = usize;
+    type IntoIter = BitSetIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut rest = self.data.into_iter();
+        let mask = rest.next();
+        let index = 0;
+        let b = 1;
+        let index_b = 0;
+
+        BitSetIter {
+            mask,
+            rest,
+            index,
+            b,
+            index_b,
+        }
     }
 }
 
@@ -466,23 +572,25 @@ pub fn solve_1(input: &str) -> usize {
         }
     }
 
+    let n_vertex = edges.len();
+
     let (mut edges, mut dictionary, mut next_id) = transform(&edges);
 
-    let (mut min_a, mut min_b, mut min_cut) = (vec![], vec![], usize::MAX);
+    let (mut min_b, mut min_cut) = (usize::MAX, usize::MAX);
 
     // let mut count = 0;
     loop {
         // count += 1;
         // println!("{count}");
 
-        let mut nodes = edges.nodes();
+        let mut b = edges.nodes.clone();
 
-        let start_node = nodes.next().unwrap();
+        let start_node = b.iter().next().unwrap();
 
         let mut a = BitSet::new();
         a.insert(start_node);
+        b.remove(start_node);
 
-        let mut b = nodes.collect::<BitSet>();
         if b.is_empty() {
             break;
         }
@@ -494,11 +602,11 @@ pub fn solve_1(input: &str) -> usize {
         loop {
             if b.len() == 1 {
                 let t = b.into_iter().next().unwrap();
+                //let t = b.iter().next().unwrap();
 
                 let cut = edges.neighbors(t).sum();
                 if min_cut > cut {
-                    min_a = a.iter().flat_map(|id| dictionary[&id].clone()).collect();
-                    min_b = dictionary[&t].clone();
+                    min_b = t;
                     min_cut = cut;
                 }
 
@@ -508,7 +616,12 @@ pub fn solve_1(input: &str) -> usize {
                 edges.merge(s, t, st);
 
                 let mut sts = dictionary[&s].clone();
-                sts.append(&mut dictionary[&t].clone());
+                sts.append(
+                    &mut dictionary
+                        .get(&t)
+                        .unwrap_or_else(|| panic!("cannot find key: {t}"))
+                        .clone(),
+                );
                 dictionary.insert(st, sts);
 
                 break;
@@ -526,7 +639,8 @@ pub fn solve_1(input: &str) -> usize {
 
     assert!(min_cut == 3);
 
-    min_a.len() * min_b.len()
+    let min_b_len = dictionary[&min_b].len();
+    (n_vertex - min_b_len) * min_b_len
 }
 
 /// Solve part 2
@@ -556,5 +670,36 @@ mod tests {
     #[test]
     fn same_results_1() {
         assert_eq!(solve_1(&EXAMPLE_1), 54);
+    }
+
+    #[test]
+    fn bitset_iter_next() {
+        let mut set = BitSet::new();
+        set.insert(BitSet::BITS + 1);
+        let mut i = set.iter();
+        assert_eq!(i.next(), Some(BitSet::BITS + 1));
+        assert_eq!(i.next(), None);
+    }
+
+    #[test]
+    fn bitset_into_iter_next() {
+        let mut set = BitSet::new();
+        set.insert(BitSet::BITS + 1);
+
+        let mut i = set.into_iter();
+        assert_eq!(i.next(), Some(BitSet::BITS + 1));
+        assert_eq!(i.next(), None);
+    }
+
+    #[test]
+    fn bitset_iter() {
+        let e = 200;
+        let set = (0..e).collect::<BitSet>();
+
+        let mut i = set.iter();
+
+        for v in 0..e {
+            assert_eq!(i.next(), Some(v));
+        }
     }
 }
