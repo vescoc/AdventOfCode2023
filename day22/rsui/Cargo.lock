@@ -107,8 +107,10 @@ dependencies = [
 name = "day22ui"
 version = "0.1.0"
 dependencies = [
+ "console_error_panic_hook",
  "day22",
- "ui",
+ "gloo-worker 0.5.0",
+ "rsui",
  "yew",
 ]
 
@@ -565,6 +567,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "gloo-worker"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "085f262d7604911c8150162529cefab3782e91adb20202e8658f7275d2aefe5d"
+dependencies = [
+ "bincode",
+ "futures",
+ "gloo-utils 0.2.0",
+ "gloo-worker-macros",
+ "js-sys",
+ "pinned",
+ "serde",
+ "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "gloo-worker-macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -843,6 +864,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsui"
+version = "0.1.0"
+dependencies = [
+ "gloo-console 0.3.0",
+ "gloo-worker 0.5.0",
+ "instant",
+ "web-sys",
+ "yew",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1042,15 +1074,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "ui"
-version = "0.1.0"
-dependencies = [
- "instant",
- "web-sys",
- "yew",
 ]
 
 [[package]]

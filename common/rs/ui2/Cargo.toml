@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 
+[features]
+stdweb = ["instant/stdweb"]
+wasm-bindgen = ["instant/wasm-bindgen"]
+
 [dependencies]
 gloo-console = "0.3"
 gloo-worker = "0.5"

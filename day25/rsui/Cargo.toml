@@ -4,23 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rsui = { path = "../../common/rs/ui2" }
 rs = { path = "../rs", package = "day25" }
-gloo-console = "0.3"
-gloo-worker = "0.5"
+rsui = { path = "../../common/rs/ui2", features = ["wasm-bindgen"] }
 console_error_panic_hook = "0.1.7"
+gloo-worker = "0.5"
 
 [dependencies.yew]
 version = "0.21"
 features = ["csr"]
-
-[dependencies.web-sys]
-version = "0.3"
-features = ["HtmlInputElement", "console"]
-
-[dependencies.instant]
-version = "0.1"
-features = ["wasm-bindgen"]
 
 [[bin]]
 name = "app"
