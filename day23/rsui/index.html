@@ -2,8 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="with=device-witdh, initial-scale=1" />
+
     <title>DAY 23</title>
+    
+    <link data-trunk-public-url />
+    
     <link data-trunk rel="sass" href="index.scss" />
+
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-bin="app" data-type="main" />
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-bin="solve1" data-type="worker" />
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-bin="solve2" data-type="worker" />
   </head>
   <body></body>
 </html>

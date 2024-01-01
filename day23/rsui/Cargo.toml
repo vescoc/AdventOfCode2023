@@ -4,9 +4,23 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-day23 = { path = "../rs" }
-ui = { path = "../../common/rs/ui", features = ["wasm-bindgen"]}
+rs = { path = "../rs", package = "day23" }
+rsui = { path = "../../common/rs/ui2", features = ["wasm-bindgen"]}
+console_error_panic_hook = "0.1.7"
+gloo-worker = "0.5"
 
 [dependencies.yew]
 version = "0.21"
 features = ["csr"]
+
+[[bin]]
+name = "app"
+path = "src/bin/app.rs"
+
+[[bin]]
+name = "solve1"
+path = "src/bin/solve1.rs"
+
+[[bin]]
+name = "solve2"
+path = "src/bin/solve2.rs"
